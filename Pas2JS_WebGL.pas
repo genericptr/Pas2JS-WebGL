@@ -1,6 +1,6 @@
 program Hello;
 uses
-	Vectors, Mat4, MemoryBuffer, GLUtils, GLTypes,
+	Mat4, MemoryBuffer, GLUtils, GLTypes,
 	BrowserConsole, Web, WebGL, WebGL2, JS, Math;
 
 type

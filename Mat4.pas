@@ -3,8 +3,11 @@
 unit Mat4;
 interface
 uses
-	Vectors,
 	BrowserConsole, JS, Math;
+
+type
+	TScalar = single;
+	TScalarArray = array of TScalar;
 
 type
 	TMat4 = class

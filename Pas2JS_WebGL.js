@@ -1297,10 +1297,6 @@ rtl.module("browserconsole",["System","JS","Web"],function () {
     };
   };
 });
-rtl.module("vectors",["System","browserconsole","JS"],function () {
-  "use strict";
-  var $mod = this;
-});
 rtl.module("SysUtils",["System","JS"],function () {
   "use strict";
   var $mod = this;
@@ -1320,7 +1316,7 @@ rtl.module("math",["System","SysUtils"],function () {
     return Result;
   };
 });
-rtl.module("Mat4",["System","vectors","browserconsole","JS","math"],function () {
+rtl.module("Mat4",["System","browserconsole","JS","math"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -1609,7 +1605,7 @@ rtl.module("GLTypes",["System","webgl","JS"],function () {
     return Result;
   };
 });
-rtl.module("program",["System","vectors","Mat4","MemoryBuffer","GLUtils","GLTypes","browserconsole","Web","webgl","JS","math"],function () {
+rtl.module("program",["System","Mat4","MemoryBuffer","GLUtils","GLTypes","browserconsole","Web","webgl","JS","math"],function () {
   "use strict";
   var $mod = this;
   this.GLVertex2 = function (s) {
