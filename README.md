@@ -10,4 +10,4 @@ Most basics of WebGL:
 
 View the actual JavaScript running:
 
-http://htmlpreview.github.io/?https://raw.githubusercontent.com/genericptr/Pas2JS-WebGL/master/Pas2JS_WebGL.html
+http://htmlpreview.github.io/?https://raw.githubusercontent.com/genericptr/Pas2JS-WebGL/master/html/Pas2JS_WebGL.html
