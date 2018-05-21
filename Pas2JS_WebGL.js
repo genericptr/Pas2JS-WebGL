@@ -1093,7 +1093,7 @@ var rtl = {
       } else {
         t = Object.create(ancestor);
         t.name = name;
-        t.module = this.module;
+        t.$module = this.$module;
         this[name] = t;
       }
       if (o){
@@ -1300,6 +1300,11 @@ rtl.module("browserconsole",["System","JS","Web"],function () {
 rtl.module("SysUtils",["System","JS"],function () {
   "use strict";
   var $mod = this;
+  this.IntToStr = function (Value) {
+    var Result = "";
+    Result = "" + Value;
+    return Result;
+  };
   rtl.createClass($mod,"TFormatSettings",pas.System.TObject,function () {
   });
   this.FormatSettings = null;
@@ -1494,7 +1499,25 @@ rtl.module("webgl",["System","JS","Web"],function () {
   "use strict";
   var $mod = this;
 });
-rtl.module("GLUtils",["System","browserconsole","Web","webgl","JS"],function () {
+rtl.module("GLTypes",["System","webgl","JS"],function () {
+  "use strict";
+  var $mod = this;
+  this.V2 = function (x, y) {
+    var Result = [];
+    Result[0] = x;
+    Result[1] = y;
+    return Result;
+  };
+  this.RGBAb = function (r, g, b, a) {
+    var Result = [];
+    Result[0] = r;
+    Result[1] = g;
+    Result[2] = b;
+    Result[3] = a;
+    return Result;
+  };
+});
+rtl.module("GLUtils",["System","Mat4","GLTypes","browserconsole","Web","webgl","JS","math","SysUtils"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -1536,11 +1559,16 @@ rtl.module("GLUtils",["System","browserconsole","Web","webgl","JS"],function () 
       this.gl.bindAttribLocation(this.programID,index,name);
     };
     this.SetUniformMat4 = function (name, value) {
-      var location = null;
-      location = this.gl.getUniformLocation(this.programID,name);
-      $impl.GLFatal(this.gl,"gl.getUniformLocation");
-      this.gl.uniformMatrix4fv(location,false,value);
+      var list = [];
+      list = value.CopyList();
+      this.gl.uniformMatrix4fv(this.GetUniformLocation(name),false,list);
       $impl.GLFatal(this.gl,"gl.uniformMatrix4fv");
+    };
+    this.GetUniformLocation = function (name) {
+      var Result = null;
+      Result = this.gl.getUniformLocation(this.programID,name);
+      $impl.GLFatal(this.gl,"gl.getUniformLocation");
+      return Result;
     };
     this.CreateShader = function (theType, source) {
       var Result = null;
@@ -1557,6 +1585,22 @@ rtl.module("GLUtils",["System","browserconsole","Web","webgl","JS"],function () 
       return Result;
     };
   });
+  this.GLSizeof = function (glType) {
+    var Result = 0;
+    var $tmp1 = glType;
+    if (($tmp1 === WebGLRenderingContext.UNSIGNED_BYTE) || ($tmp1 === WebGLRenderingContext.BYTE)) {
+      Result = 1}
+     else if (($tmp1 === WebGLRenderingContext.SHORT) || ($tmp1 === WebGLRenderingContext.UNSIGNED_SHORT)) {
+      Result = 2}
+     else if (($tmp1 === WebGLRenderingContext.INT) || ($tmp1 === WebGLRenderingContext.UNSIGNED_INT)) {
+      Result = 4}
+     else if ($tmp1 === WebGLRenderingContext.FLOAT) {
+      Result = 4}
+     else {
+      $impl.Fatal("GLSizeof type is invalid.");
+    };
+    return Result;
+  };
 },null,function () {
   "use strict";
   var $mod = this;
@@ -1572,40 +1616,22 @@ rtl.module("GLUtils",["System","browserconsole","Web","webgl","JS"],function () 
   $impl.GLFatal = function (gl, messageString) {
     var error = 0;
     error = gl.getError();
-    if (error !== gl.NO_ERROR) {
+    if (error !== WebGLRenderingContext.NO_ERROR) {
+      var $tmp1 = error;
+      if ($tmp1 === WebGLRenderingContext.INVALID_VALUE) {
+        messageString = messageString + " (GL_INVALID_VALUE)"}
+       else if ($tmp1 === WebGLRenderingContext.INVALID_OPERATION) {
+        messageString = messageString + " (GL_INVALID_OPERATION)"}
+       else if ($tmp1 === WebGLRenderingContext.INVALID_ENUM) {
+        messageString = messageString + " (GL_INVALID_ENUM)"}
+       else {
+        messageString = (messageString + " ") + pas.SysUtils.IntToStr(error);
+      };
       $impl.Fatal(messageString);
     };
   };
 });
-rtl.module("GLTypes",["System","webgl","JS"],function () {
-  "use strict";
-  var $mod = this;
-  this.TVec2_Sizeof = function () {
-    var Result = 0;
-    Result = 4 * 2;
-    return Result;
-  };
-  this.TRGBAb_Sizeof = function () {
-    var Result = 0;
-    Result = 1 * 4;
-    return Result;
-  };
-  this.V2 = function (x, y) {
-    var Result = [];
-    Result[0] = x;
-    Result[1] = y;
-    return Result;
-  };
-  this.RGBAb = function (r, g, b, a) {
-    var Result = [];
-    Result[0] = r;
-    Result[1] = g;
-    Result[2] = b;
-    Result[3] = a;
-    return Result;
-  };
-});
-rtl.module("program",["System","Mat4","MemoryBuffer","GLUtils","GLTypes","browserconsole","Web","webgl","JS","math"],function () {
+rtl.module("program",["System","Mat4","MemoryBuffer","GLUtils","GLTypes","SysUtils","browserconsole","Web","webgl","JS","math"],function () {
   "use strict";
   var $mod = this;
   this.GLVertex2 = function (s) {
@@ -1657,7 +1683,6 @@ rtl.module("program",["System","Mat4","MemoryBuffer","GLUtils","GLTypes","browse
   this.rotateAngle = 0;
   this.UpdateCanvas = function (time) {
     var now = 0.0;
-    var list = [];
     now = time * 0.001;
     $mod.deltaTime = now - $mod.nextTime;
     $mod.nextTime = now;
@@ -1665,19 +1690,17 @@ rtl.module("program",["System","Mat4","MemoryBuffer","GLUtils","GLTypes","browse
     $mod.modelTransform = $mod.modelTransform.Multiply(pas.Mat4.TMat4.$create("Translate",[100,100,0]));
     $mod.modelTransform = $mod.modelTransform.Multiply(pas.Mat4.TMat4.$create("RotateZ",[pas.math.DegToRad($mod.rotateAngle)]));
     $mod.rotateAngle = $mod.rotateAngle + (20 * $mod.deltaTime);
-    list = $mod.modelTransform.CopyList();
-    $mod.shader.SetUniformMat4("modelTransform",list);
+    $mod.shader.SetUniformMat4("modelTransform",$mod.modelTransform);
     $mod.gl.clear($mod.gl.COLOR_BUFFER_BIT);
     $mod.gl.drawArrays($mod.gl.TRIANGLES,0,3);
     window.requestAnimationFrame($mod.UpdateCanvas);
   };
   this.canvas = null;
-  this.offset = 0;
   this.stride = 0;
+  this.offset = 0;
   this.vertexShaderSource = "";
   this.fragmentShaderSource = "";
   this.buffer = null;
-  this.list = [];
   $mod.$main = function () {
     $mod.canvas = document.createElement("canvas");
     $mod.canvas.width = 300;
@@ -1702,23 +1725,20 @@ rtl.module("program",["System","Mat4","MemoryBuffer","GLUtils","GLTypes","browse
     $mod.projTransform = pas.Mat4.TMat4.$create("Ortho",[0,$mod.gl.canvas.width,$mod.gl.canvas.height,0,-1,1]);
     $mod.viewTransform = pas.Mat4.TMat4.$create("Identity");
     $mod.modelTransform = pas.Mat4.TMat4.$create("Identity");
-    $mod.list = $mod.projTransform.CopyList();
-    $mod.shader.SetUniformMat4("projTransform",$mod.list);
-    $mod.list = $mod.viewTransform.CopyList();
-    $mod.shader.SetUniformMat4("viewTransform",$mod.list);
-    $mod.list = $mod.modelTransform.CopyList();
-    $mod.shader.SetUniformMat4("modelTransform",$mod.list);
+    $mod.shader.SetUniformMat4("projTransform",$mod.projTransform);
+    $mod.shader.SetUniformMat4("viewTransform",$mod.viewTransform);
+    $mod.shader.SetUniformMat4("modelTransform",$mod.modelTransform);
     $mod.buffer = $mod.gl.createBuffer();
     $mod.gl.bindBuffer($mod.gl.ARRAY_BUFFER,$mod.buffer);
     $mod.gl.bufferData($mod.gl.ARRAY_BUFFER,$mod.GetVertexData(),$mod.gl.STATIC_DRAW);
     $mod.offset = 0;
-    $mod.stride = 12;
+    $mod.stride = (pas.GLUtils.GLSizeof($mod.gl.FLOAT) * 2) + (pas.GLUtils.GLSizeof($mod.gl.UNSIGNED_BYTE) * 4);
     $mod.gl.enableVertexAttribArray(0);
     $mod.gl.vertexAttribPointer(0,2,$mod.gl.FLOAT,false,$mod.stride,$mod.offset);
-    $mod.offset = $mod.offset + pas.GLTypes.TVec2_Sizeof();
+    $mod.offset += pas.GLUtils.GLSizeof($mod.gl.FLOAT) * 2;
     $mod.gl.enableVertexAttribArray(1);
     $mod.gl.vertexAttribPointer(1,4,$mod.gl.UNSIGNED_BYTE,true,$mod.stride,$mod.offset);
-    $mod.offset = $mod.offset + pas.GLTypes.TRGBAb_Sizeof();
+    $mod.offset += pas.GLUtils.GLSizeof($mod.gl.UNSIGNED_BYTE) * 4;
     window.requestAnimationFrame($mod.UpdateCanvas);
   };
 });

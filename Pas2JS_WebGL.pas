@@ -1,6 +1,6 @@
-program Hello;
+program Pas2JS_WebGL;
 uses
-	Mat4, MemoryBuffer, GLUtils, GLTypes,
+	Mat4, MemoryBuffer, GLUtils, GLTypes, SysUtils,
 	BrowserConsole, Web, WebGL, WebGL2, JS, Math;
 
 type
@@ -8,9 +8,6 @@ type
 		pos: TVec2;
 		color: TRGBAb;
 	end;
-
-const
-	kSIZEOF_VERTEX = 12;
 
 function GetVertexData: TJSUInt8Array;
 var
@@ -63,7 +60,6 @@ var
 procedure UpdateCanvas(time: TDOMHighResTimeStamp);
 var
 	now: single;
-	list: TScalarArray;
 begin
 	now := time * 0.001;
 	deltaTime := now - nextTime;
@@ -73,13 +69,9 @@ begin
 	modelTransform := modelTransform.Multiply(TMat4.Translate(100, 100, 0));
 	modelTransform := modelTransform.Multiply(TMat4.RotateZ(DegToRad(rotateAngle)));
 
-	//fullTransform := projTransform.Multiply(viewTransform);
-	//fullTransform := fullTransform.Multiply(modelTransform);
-
 	rotateAngle := rotateAngle + (20 * deltaTime);
 
-	list := modelTransform.CopyList;
-	shader.SetUniformMat4('modelTransform', TJSFloat32List(list));
+	shader.SetUniformMat4('modelTransform', modelTransform);
 
 	//writeln(deltaTime);
 	gl.clear(gl.COLOR_BUFFER_BIT);
@@ -91,12 +83,11 @@ end;
 var
   canvas: TJSHTMLCanvasElement;
   i: integer;
-  offset: integer;
   stride: integer;
+  offset: integer;
   vertexShaderSource: string;
   fragmentShaderSource: string;
   buffer: TJSWebGLBuffer;
-  list: TScalarArray;
 begin
 
 	// make webgl context
@@ -133,35 +124,28 @@ begin
 	viewTransform := TMat4.Identity;
 	modelTransform := TMat4.Identity;
 
-	// TODO: parser bug typecasting to TJSFloat32List(projTransform.CopyList)
-	// so we need to assign to a variable first
-	list := projTransform.CopyList;
-	shader.SetUniformMat4('projTransform', TJSFloat32List(list));
-	list := viewTransform.CopyList;
-	shader.SetUniformMat4('viewTransform', TJSFloat32List(list));
-	list := modelTransform.CopyList;
-	shader.SetUniformMat4('modelTransform', TJSFloat32List(list));
+	shader.SetUniformMat4('projTransform', projTransform);
+	shader.SetUniformMat4('viewTransform', viewTransform);
+	shader.SetUniformMat4('modelTransform', modelTransform);
 
 	// create buffer
 	buffer := gl.createBuffer;
 	gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, GetVertexData, gl.STATIC_DRAW);
 
-	// TODO: vertex array objects were added in webgl2
 	offset := 0;  
-	stride := kSIZEOF_VERTEX;
+	// vec2 + RGBAb
+	stride := GLSizeof(gl.FLOAT) * 2 + GLSizeof(gl.UNSIGNED_BYTE) * 4;
 
 	// position
 	gl.enableVertexAttribArray(0);
 	gl.vertexAttribPointer(0, 2, gl.FLOAT, false, stride, offset);
-	offset := offset + TVec2_Sizeof;
+	offset += GLSizeof(gl.FLOAT) * 2;
 
 	// color (normalized = true since we're using unsigned byte)
 	gl.enableVertexAttribArray(1);
 	gl.vertexAttribPointer(1, 4, gl.UNSIGNED_BYTE, true, stride, offset);
-	offset := offset + TRGBAb_Sizeof;
-
-	//gl.drawArrays(gl.TRIANGLES, 0, 3);
+	offset += GLSizeof(gl.UNSIGNED_BYTE) * 4;
 
 	// fire off the timer to draw
 	window.requestAnimationFrame(@UpdateCanvas);

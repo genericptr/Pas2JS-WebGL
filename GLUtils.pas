@@ -1,7 +1,9 @@
 unit GLUtils;
 interface
 uses
-	BrowserConsole, Web, WebGL, JS;
+	Mat4, GLTypes, Types,
+	BrowserConsole, Web, WebGL, JS, 
+	Math, SysUtils;
 
 type
 	TShader = class
@@ -14,7 +16,9 @@ type
 			function GetAttribLocation (name: string): GLint;
 			procedure BindAttribLocation (index: GLuint; name: string);
 
-			procedure SetUniformMat4 (name: string; value: TJSFloat32List);
+			procedure SetUniformMat4 (name: string; value: TMat4);
+			procedure SetUniformVec3 (name: string; value: TVec3);
+			procedure SetUniformFloat (name: string; value: GLfloat);
 
 		private
 			gl: TJSWebGLRenderingContext;
@@ -22,11 +26,45 @@ type
 			fragmentShader: TJSWebGLShader;
 			programID: TJSWebGLProgram;
 
+			function GetUniformLocation (name: string): TJSWebGLUniformLocation;
 			function CreateShader (theType: GLenum; source: string): TJSWebGLShader;
 	end;
 
 
+type
+	TOBJData = record
+		verticies: TJSFloat32Array;		// GLfloat
+
+		// NOTE: it's not clear if WebGL supports GLuint
+		// https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawElements
+
+		indices: TJSUint16Array;			// GLushort
+		floatsPerVertex: integer;
+	end;
+
+type
+	TModel = class
+		public
+			constructor Create(context: TJSWebGLRenderingContext; objData: TOBJData);
+			procedure Draw;
+		private
+			gl: TJSWebGLRenderingContext;
+			data: TOBJData;
+			vertexBuffer: TJSWebGLBuffer;
+			indexBuffer: TJSWebGLBuffer;
+
+			procedure EnableAttributes;
+			procedure Load;
+	end;
+
+function LoadOBJFile (text: TJSString): TOBJData;
+function GLSizeof(glType: NativeInt): integer; 
+
 implementation
+
+{=============================================}
+{@! ___Utilities___ } 
+{=============================================}
 
 procedure Fatal (messageString: string); overload;
 begin
@@ -46,33 +84,286 @@ var
 	error: integer;
 begin
 	error := gl.getError();
-	if error <> gl.NO_ERROR then
+	if error <> TJSWebGLRenderingContext.NO_ERROR then
 		begin
 			// TODO: case doesn't work?
-			//case error of
-			//	gl.INVALID_VALUE:
-			//		messageString := messageString+' (GL_INVALID_VALUE)';
-			//	gl.INVALID_OPERATION:
-			//		messageString := messageString+' (GL_INVALID_OPERATION)';
-			//	gl.INVALID_ENUM:
-			//		messageString := messageString+' (GL_INVALID_ENUM)';
-			//	otherwise
-			//		messageString := messageString+' '+IntToStr(error);
-			//end;
+			case error of
+				TJSWebGLRenderingContext.INVALID_VALUE:
+					messageString := messageString+' (GL_INVALID_VALUE)';
+				TJSWebGLRenderingContext.INVALID_OPERATION:
+					messageString := messageString+' (GL_INVALID_OPERATION)';
+				TJSWebGLRenderingContext.INVALID_ENUM:
+					messageString := messageString+' (GL_INVALID_ENUM)';
+				otherwise
+					messageString := messageString+' '+IntToStr(error);
+			end;
 			// TODO: IntoStr doesn't work? cast to string or TJSString doesn't work either
 			//messageString := messageString+' '+IntToStr(error);
 			Fatal(messageString);
 		end;
 end;
 
-procedure TShader.SetUniformMat4 (name: string; value: TJSFloat32List);
-var
-	location: TJSWebGLUniformLocation;
+function GLSizeof(glType: NativeInt): integer; 
 begin
-	location := gl.getUniformLocation(programID, name);
-	//writeln(name, ' = ', location, ' => ', value);
+	case glType of
+		TJSWebGLRenderingContext.UNSIGNED_BYTE, TJSWebGLRenderingContext.BYTE:
+			result := 1;
+		TJSWebGLRenderingContext.SHORT, TJSWebGLRenderingContext.UNSIGNED_SHORT:
+			result := 2;
+		TJSWebGLRenderingContext.INT, TJSWebGLRenderingContext.UNSIGNED_INT:
+			result := 4;
+		TJSWebGLRenderingContext.FLOAT:
+			result := 4;
+		otherwise
+			Fatal('GLSizeof type is invalid.');
+	end;
+end;
+
+{=============================================}
+{@! ___Model___ } 
+{=============================================}
+constructor TModel.Create(context: TJSWebGLRenderingContext; objData: TOBJData);
+begin
+	gl := context;
+	data := objData;
+	Load;
+end;
+
+procedure TModel.Draw;
+begin
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+	EnableAttributes;
+	gl.drawElements(gl.TRIANGLES, data.indices.length, gl.UNSIGNED_SHORT, 0);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, nil);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, nil);
+end;
+
+procedure TModel.EnableAttributes;
+var
+	offset: integer;
+	stride: integer;
+begin
+
+	// NOTE: we don't have VAO's yet so we need to enable vertex attributes for shader
+	// before every draw call (unless the array buffer hasn't changed between calls)
+	offset := 0;  
+	stride := data.floatsPerVertex * GLSizeof(TJSWebGLRenderingContext.FLOAT);
+
+	// position
+	gl.enableVertexAttribArray(0);
+	gl.vertexAttribPointer(0, 3, gl.FLOAT, false, stride, offset);
+	offset += GLSizeof(TJSWebGLRenderingContext.FLOAT) * 3;
+
+	// texture
+	gl.enableVertexAttribArray(1);
+	gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, offset);
+	offset += GLSizeof(TJSWebGLRenderingContext.FLOAT) * 2;
+
+	// normal
+	gl.enableVertexAttribArray(2);
+	gl.vertexAttribPointer(2, 3, gl.FLOAT, false, stride, offset);
+	offset += GLSizeof(TJSWebGLRenderingContext.FLOAT) * 3;
+end;
+
+procedure TModel.Load;
+var
+	i: integer;
+begin
+	indexBuffer := gl.createBuffer;
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data.indices, gl.STATIC_DRAW);	
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, nil);
+
+	vertexBuffer := gl.createBuffer;
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, data.verticies, gl.STATIC_DRAW);
+	gl.bindBuffer(gl.ARRAY_BUFFER, nil);
+end;
+
+type
+	TOBJVertex = record
+		position: TVec3;
+		textureIndex: integer;
+		normalIndex: integer;
+	end;
+
+function ProcessFace (verticies: TJSArray; indices: TJSArray; face: TStringDynArray): TOBJVertex;
+var
+	index: integer;
+	vertex: TOBJVertex;
+begin
+	index := StrToInt(face[0]) - 1;
+
+	vertex := TOBJVertex(verticies[index]);
+
+	// NOTE: see TOBJData
+	// index can't exceed GLushort
+	if index > 65536 then
+		Fatal('overflowed indices array');
+
+	if face[1] <> '' then
+		vertex.textureIndex := StrToInt(face[1]) - 1
+	else
+		vertex.textureIndex := -1;
+
+	if face[2] <> '' then
+		vertex.normalIndex := StrToInt(face[2]) - 1
+	else
+		vertex.normalIndex := -1;
+
+	indices.push(index);
+	
+	verticies[index] := vertex;
+
+	result := vertex;
+end;
+
+function LoadOBJFile (text: TJSString): TOBJData;
+const
+	kLineEnding = #10;
+	kSpace = ' '; // what code is space?
+var
+	lines: TStringDynArray;
+	parts: TStringDynArray;
+	indices: TJSArray;
+	positions: TJSArray;
+	normals: TJSArray;
+	textures: TJSArray;
+	verticies: TJSArray;
+	mesh: TJSFloat32Array;
+
+	i: integer;
+	line: TJSString;
+	vertex: TOBJVertex;
+	vertexIndex: integer;
+	objData: TOBJData;
+
+	pos: TVec3;
+	texCoord: TVec2;
+	normal: TVec3;
+begin
+	positions := TJSArray.new;
+	normals := TJSArray.new;
+	textures := TJSArray.new;
+	indices := TJSArray.new;
+	verticies := TJSArray.new;
+
+	lines := text.split(kLineEnding);
+
+	for i := 0 to high(lines) do
+		begin
+			line := TJSString(lines[i]);
+			parts := line.split(kSpace);
+
+			if line.startsWith('v ') then
+				begin
+					pos := V3(StrToFloat(parts[1]), StrToFloat(parts[2]), StrToFloat(parts[3]));
+					positions.push(pos);
+					
+					// add new vertex
+					vertex.position := pos;
+					vertex.textureIndex := -1;
+					vertex.normalIndex := -1;
+					verticies.push(pos);
+				end
+			else if line.startsWith('vn ') then
+				begin
+					normals.push(V3(StrToFloat(parts[1]), StrToFloat(parts[2]), StrToFloat(parts[3])));
+				end
+			else if line.startsWith('vt ') then
+				begin
+					textures.push(V2(StrToFloat(parts[1]), 1 - StrToFloat(parts[2])));
+				end
+			else if line.startsWith('f ') then
+				begin
+					ProcessFace(verticies, indices, TJSString(parts[1]).split('/'));
+					ProcessFace(verticies, indices, TJSString(parts[2]).split('/'));
+					ProcessFace(verticies, indices, TJSString(parts[3]).split('/'));
+				end;
+		end;
+	
+	// vec3 (position) + vec2 (texCoord) + vec3 (normal)
+	objData.floatsPerVertex := 3 + 2 + 3;
+
+	mesh := TJSFloat32Array.New(objData.floatsPerVertex * verticies.length);
+
+	for i := 0 to verticies.length - 1 do
+		begin
+			vertex := TOBJVertex(verticies[i]);
+
+			vertexIndex := i * objData.floatsPerVertex;
+
+			// position
+			pos := TVec3(positions[i]);
+			mesh[vertexIndex + 0] := pos[0];
+			mesh[vertexIndex + 1] := pos[1];
+			mesh[vertexIndex + 2] := pos[2];
+
+			// texture
+			if vertex.textureIndex <> -1 then
+				begin
+					texCoord := TVec2(textures[vertex.textureIndex]);
+					mesh[vertexIndex + 3] := texCoord[0];
+					mesh[vertexIndex + 4] := texCoord[1];
+				end
+			else
+				begin
+					mesh[vertexIndex + 3] := 0;
+					mesh[vertexIndex + 4] := 0;
+				end;
+			
+			// normal
+			if vertex.normalIndex <> -1 then
+				begin
+					normal := TVec3(normals[vertex.normalIndex]);
+					mesh[vertexIndex + 5] := normal[0];
+					mesh[vertexIndex + 6] := normal[1];
+					mesh[vertexIndex + 7] := normal[2];
+				end;
+		end;
+
+	//writeln('floats: ', mesh.length);
+	//writeln('positions:', positions.length);
+	//writeln('indices:', indices.length);
+
+	objData.verticies := mesh;
+	objData.indices := TJSUint16Array.New(TJSObject(indices));
+
+	result := objData;
+end;
+
+{=============================================}
+{@! ___Shader___ } 
+{=============================================}
+function TShader.GetUniformLocation (name: string): TJSWebGLUniformLocation;
+begin
+	// TODO: cache these. how do we use dictionarys from JS in Pascal?
+	result := gl.getUniformLocation(programID, name);
 	GLFatal(gl, 'gl.getUniformLocation');
-	gl.uniformMatrix4fv(location, false, value);
+end;
+
+procedure TShader.SetUniformFloat (name: string; value: GLfloat);
+begin
+	gl.uniform1f(GetUniformLocation(name), value);
+	GLFatal(gl, 'gl.uniform1f');
+end;
+
+procedure TShader.SetUniformVec3 (name: string; value: TVec3);
+begin
+	gl.uniform3fv(GetUniformLocation(name), TJSFloat32List(value));
+	GLFatal(gl, 'gl.uniform3fv');
+end;
+
+procedure TShader.SetUniformMat4 (name: string; value: TMat4);
+var
+	list: TJSFloat32List;
+begin
+	// TODO: fix mat4 to use flat arrays
+	list := TJSFloat32List(value.CopyList);
+	gl.uniformMatrix4fv(GetUniformLocation(name), false, list);
 	GLFatal(gl, 'gl.uniformMatrix4fv');
 end;
 

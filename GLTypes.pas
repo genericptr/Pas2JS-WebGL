@@ -7,14 +7,13 @@ uses
 
 type
 	TVec2 = array of GLfloat;
+	TVec3 = array of GLfloat;
 	TRGBAb = array of GLubyte;
 	TRGBAf = array of GLfloat;
 
-function TVec2_Sizeof: integer;
-function TRGBAb_Sizeof: integer;
-function TRGBAf_Sizeof: integer;
-
 function V2(x, y: GLfloat): TVec2;
+function V3(x, y, z: GLfloat): TVec3;
+
 function RGBAb(r, g, b, a: GLubyte): TRGBAb;
 function RGBAf(r, g, b, a: GLfloat): TRGBAf;
 
@@ -26,6 +25,13 @@ begin
 	result[1] := y;
 end;
 
+function V3(x, y, z: GLfloat): TVec2;
+begin
+	result[0] := x;
+	result[1] := y;
+	result[2] := z;
+end;
+
 function RGBAb(r, g, b, a: GLubyte): TRGBAb;
 begin
 	result[0] := r;
@@ -40,21 +46,6 @@ begin
 	result[1] := g;
 	result[2] := b;
 	result[3] := a;
-end;
-
-function TVec2_Sizeof: integer;
-begin
-	result := (4 * 2);
-end;
-
-function TRGBAb_Sizeof: integer;
-begin
-	result := (1 * 4);
-end;
-
-function TRGBAf_Sizeof: integer;
-begin
-	result := (4 * 4);
 end;
 
 end.
