@@ -1732,7 +1732,7 @@ rtl.module("program",["System","Mat4","MemoryBuffer","GLUtils","GLTypes","SysUti
     $mod.gl.bindBuffer($mod.gl.ARRAY_BUFFER,$mod.buffer);
     $mod.gl.bufferData($mod.gl.ARRAY_BUFFER,$mod.GetVertexData(),$mod.gl.STATIC_DRAW);
     $mod.offset = 0;
-    $mod.stride = (pas.GLUtils.GLSizeof($mod.gl.FLOAT) * 2) + (pas.GLUtils.GLSizeof($mod.gl.UNSIGNED_BYTE) * 4);
+    $mod.stride = 12;
     $mod.gl.enableVertexAttribArray(0);
     $mod.gl.vertexAttribPointer(0,2,$mod.gl.FLOAT,false,$mod.stride,$mod.offset);
     $mod.offset += pas.GLUtils.GLSizeof($mod.gl.FLOAT) * 2;

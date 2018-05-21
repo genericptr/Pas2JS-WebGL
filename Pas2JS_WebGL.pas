@@ -9,6 +9,9 @@ type
 		color: TRGBAb;
 	end;
 
+const
+	kSIZEOF_VERTEX = 12;
+
 function GetVertexData: TJSUInt8Array;
 var
 	buffer: TMemoryBuffer;
@@ -135,7 +138,7 @@ begin
 
 	offset := 0;  
 	// vec2 + RGBAb
-	stride := GLSizeof(gl.FLOAT) * 2 + GLSizeof(gl.UNSIGNED_BYTE) * 4;
+	stride := kSIZEOF_VERTEX;
 
 	// position
 	gl.enableVertexAttribArray(0);
