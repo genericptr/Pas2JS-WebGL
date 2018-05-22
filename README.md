@@ -22,6 +22,6 @@ OBJ Loader with lighting:
 
 http://htmlpreview.github.io/?https://raw.githubusercontent.com/genericptr/Pas2JS-WebGL/master/html/Pas2JS_WebGL_OBJ.html
 
-Terrain generation using Perlin noise:
+Terrain generation using Perlin noise (NOTE: can't be viewed online currently until I figure out the image loading security issue):
 
 http://htmlpreview.github.io/?https://raw.githubusercontent.com/genericptr/Pas2JS-WebGL/master/html/Pas2JS_WebGL_Terrain.html
