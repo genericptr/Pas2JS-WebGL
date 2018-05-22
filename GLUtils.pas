@@ -1,9 +1,9 @@
 unit GLUtils;
 interface
 uses
-	Mat4, GLTypes, Types,
+	MemoryBuffer, Mat4, GLTypes,
 	BrowserConsole, Web, WebGL, JS, 
-	Math, SysUtils;
+	Types, Math, SysUtils;
 
 type
 	TShader = class
@@ -32,33 +32,48 @@ type
 
 
 type
-	TOBJData = record
+	TModelData = record
 		verticies: TJSFloat32Array;		// GLfloat
 
 		// NOTE: it's not clear if WebGL supports GLuint
 		// https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawElements
 
-		indices: TJSUint16Array;			// GLushort
+		indicies: TJSUint16Array;			// GLushort
 		floatsPerVertex: integer;
 	end;
+
+const
+	kModelVertexFloats = 3 + 2 + 3;
+type
+	TModelVertex = record
+		pos: TVec3;
+		texCoord: TVec2;
+		normal: TVec3;
+	end;
+
+procedure ModelVertexAddToBuffer(vertex: TModelVertex; buffer: TMemoryBuffer);
+procedure ModelVertexAddToArray (vertex: TModelVertex; list: TJSArray); 
 
 type
 	TModel = class
 		public
-			constructor Create(context: TJSWebGLRenderingContext; objData: TOBJData);
+			constructor Create(context: TJSWebGLRenderingContext; modelData: TModelData); overload;
 			procedure Draw;
 		private
 			gl: TJSWebGLRenderingContext;
-			data: TOBJData;
+			data: TModelData;
 			vertexBuffer: TJSWebGLBuffer;
 			indexBuffer: TJSWebGLBuffer;
+			elementCount: integer;
 
 			procedure EnableAttributes;
 			procedure Load;
 	end;
 
-function LoadOBJFile (text: TJSString): TOBJData;
+function LoadOBJFile (text: TJSString): TModelData;
+
 function GLSizeof(glType: NativeInt): integer; 
+procedure GLFatal (gl: TJSWebGLRenderingContext; messageString: string = 'Fatal OpenGL error'); 
 
 implementation
 
@@ -69,14 +84,14 @@ implementation
 procedure Fatal (messageString: string); overload;
 begin
 	writeln('*** FATAL: ', messageString);
-	exit;
+	raise Exception.Create('FATAL');
 end;
 
 // TODO: toll free bridge to FPC strings
 procedure Fatal (messageString: TJSString); overload;
 begin
 	writeln('*** FATAL: ', messageString);
-	exit;
+	raise Exception.Create('FATAL');
 end;
 
 procedure GLFatal (gl: TJSWebGLRenderingContext; messageString: string = 'Fatal OpenGL error'); 
@@ -97,8 +112,6 @@ begin
 				otherwise
 					messageString := messageString+' '+IntToStr(error);
 			end;
-			// TODO: IntoStr doesn't work? cast to string or TJSString doesn't work either
-			//messageString := messageString+' '+IntToStr(error);
 			Fatal(messageString);
 		end;
 end;
@@ -122,10 +135,32 @@ end;
 {=============================================}
 {@! ___Model___ } 
 {=============================================}
-constructor TModel.Create(context: TJSWebGLRenderingContext; objData: TOBJData);
+
+procedure ModelVertexAddToBuffer(vertex: TModelVertex; buffer: TMemoryBuffer);
+begin
+	buffer.AddFloats(kModelVertexFloats, [
+		vertex.pos.x, vertex.pos.y, vertex.pos.z,
+		vertex.texCoord.x, vertex.texCoord.y,
+		vertex.normal.x, vertex.normal.y, vertex.normal.z
+		]);
+end;
+
+procedure ModelVertexAddToArray (vertex: TModelVertex; list: TJSArray); 
+begin
+	list.push(vertex.pos.x);
+	list.push(vertex.pos.y);
+	list.push(vertex.pos.z);
+	list.push(vertex.texCoord.x);
+	list.push(vertex.texCoord.y);
+	list.push(vertex.normal.x);
+	list.push(vertex.normal.y);
+	list.push(vertex.normal.z);
+end;
+
+constructor TModel.Create(context: TJSWebGLRenderingContext; modelData: TModelData);
 begin
 	gl := context;
-	data := objData;
+	data := modelData;
 	Load;
 end;
 
@@ -135,7 +170,7 @@ begin
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
 
 	EnableAttributes;
-	gl.drawElements(gl.TRIANGLES, data.indices.length, gl.UNSIGNED_SHORT, 0);
+	gl.drawElements(gl.TRIANGLES, data.indicies.length, gl.UNSIGNED_SHORT, 0);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, nil);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, nil);
@@ -169,12 +204,10 @@ begin
 end;
 
 procedure TModel.Load;
-var
-	i: integer;
 begin
 	indexBuffer := gl.createBuffer;
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data.indices, gl.STATIC_DRAW);	
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data.indicies, gl.STATIC_DRAW);	
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, nil);
 
 	vertexBuffer := gl.createBuffer;
@@ -221,7 +254,7 @@ begin
 	result := vertex;
 end;
 
-function LoadOBJFile (text: TJSString): TOBJData;
+function LoadOBJFile (text: TJSString): TModelData;
 const
 	kLineEnding = #10;
 	kSpace = ' '; // what code is space?
@@ -239,7 +272,7 @@ var
 	line: TJSString;
 	vertex: TOBJVertex;
 	vertexIndex: integer;
-	objData: TOBJData;
+	data: TModelData;
 
 	pos: TVec3;
 	texCoord: TVec2;
@@ -286,28 +319,28 @@ begin
 		end;
 	
 	// vec3 (position) + vec2 (texCoord) + vec3 (normal)
-	objData.floatsPerVertex := 3 + 2 + 3;
+	data.floatsPerVertex := kModelVertexFloats;
 
-	mesh := TJSFloat32Array.New(objData.floatsPerVertex * verticies.length);
+	mesh := TJSFloat32Array.New(data.floatsPerVertex * verticies.length);
 
 	for i := 0 to verticies.length - 1 do
 		begin
 			vertex := TOBJVertex(verticies[i]);
 
-			vertexIndex := i * objData.floatsPerVertex;
+			vertexIndex := i * data.floatsPerVertex;
 
 			// position
 			pos := TVec3(positions[i]);
-			mesh[vertexIndex + 0] := pos[0];
-			mesh[vertexIndex + 1] := pos[1];
-			mesh[vertexIndex + 2] := pos[2];
+			mesh[vertexIndex + 0] := pos.x;
+			mesh[vertexIndex + 1] := pos.y;
+			mesh[vertexIndex + 2] := pos.z;
 
 			// texture
 			if vertex.textureIndex <> -1 then
 				begin
 					texCoord := TVec2(textures[vertex.textureIndex]);
-					mesh[vertexIndex + 3] := texCoord[0];
-					mesh[vertexIndex + 4] := texCoord[1];
+					mesh[vertexIndex + 3] := texCoord.x;
+					mesh[vertexIndex + 4] := texCoord.y;
 				end
 			else
 				begin
@@ -319,9 +352,9 @@ begin
 			if vertex.normalIndex <> -1 then
 				begin
 					normal := TVec3(normals[vertex.normalIndex]);
-					mesh[vertexIndex + 5] := normal[0];
-					mesh[vertexIndex + 6] := normal[1];
-					mesh[vertexIndex + 7] := normal[2];
+					mesh[vertexIndex + 5] := normal.x;
+					mesh[vertexIndex + 6] := normal.y;
+					mesh[vertexIndex + 7] := normal.z;
 				end;
 		end;
 
@@ -329,10 +362,10 @@ begin
 	//writeln('positions:', positions.length);
 	//writeln('indices:', indices.length);
 
-	objData.verticies := mesh;
-	objData.indices := TJSUint16Array.New(TJSObject(indices));
+	data.verticies := mesh;
+	data.indicies := TJSUint16Array.New(TJSObject(indices));
 
-	result := objData;
+	result := data;
 end;
 
 {=============================================}
@@ -353,7 +386,8 @@ end;
 
 procedure TShader.SetUniformVec3 (name: string; value: TVec3);
 begin
-	gl.uniform3fv(GetUniformLocation(name), TJSFloat32List(value));
+	//gl.uniform3fv(GetUniformLocation(name), ToFloats(value));
+	gl.uniform3f(GetUniformLocation(name), value.x, value.y, value.z);
 	GLFatal(gl, 'gl.uniform3fv');
 end;
 

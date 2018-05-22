@@ -64,7 +64,7 @@ type
 
 procedure TModelLoader.HandleLoaded;
 var
-	data: TOBJData;
+	data: TModelData;
 begin
 	if (request.readyState = 4) and (request.status = 200) and (length(request.responseText) > 0) then
 		begin

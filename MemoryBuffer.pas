@@ -11,12 +11,22 @@ type
 			byteBuffer: TJSUint8Array;
 		public
 		 constructor Create (size: integer);
+
+		 { UInt8 }
 		 procedure AddBytes (count: integer; data: array of byte);
+
+		 { Float32 }
 		 procedure AddFloats (count: integer; data: array of single);
+		 procedure AddFloat (data: single);
+
+		 { UInt16 }
+		 procedure AddWords(count: integer; data: array of word);
+
 		 property GetBytes: TJSUint8Array read byteBuffer;
 		private
 			byteOffset: integer;
 			floatBuffer: TJSFloat32Array;
+			wordBuffer: TJSUInt16Array;
 	end;
 
 implementation
@@ -33,19 +43,42 @@ begin
 	byteOffset := byteOffset + (count * 1);
 end;
 
+procedure TMemoryBuffer.AddFloat (data: single);
+begin
+	AddFloats(1, [data]);
+end;
+
 procedure TMemoryBuffer.AddFloats (count: integer; data: array of single);
+const
+	kElementSize = 4;
 var
 	floatOffset: integer;
 begin
-	floatOffset := byteOffset div 4;
+	floatOffset := byteOffset div kElementSize;
 	//writeln('AddFloats: @', byteOffset, '/', floatOffset, ' -> ', data);
 
 	if floatBuffer = nil then
-		floatBuffer := TJSFloat32Array.New(byteBuffer.buffer, 0, byteBuffer.byteLength div 4);
+		floatBuffer := TJSFloat32Array.New(byteBuffer.buffer, 0, byteBuffer.byteLength div kElementSize);
 
 	floatBuffer._set(data, floatOffset);
 
-	byteOffset := byteOffset + (count * 4);
+	byteOffset := byteOffset + (count * kElementSize);
+end;
+
+procedure TMemoryBuffer.AddWords(count: integer; data: array of word);
+const
+	kElementSize = 2;
+var
+	wordOffset: integer;
+begin
+	wordOffset := byteOffset div kElementSize;
+
+	if wordBuffer = nil then
+		wordBuffer := TJSUInt16Array.New(byteBuffer.buffer, 0, byteBuffer.byteLength div kElementSize);
+
+	wordBuffer._set(data, wordOffset);
+
+	byteOffset := byteOffset + (count * kElementSize);
 end;
 
 end.

@@ -1175,6 +1175,20 @@ rtl.module("System",[],function () {
     this.BeforeDestruction = function () {
     };
   });
+  this.Random = function (Range) {
+    return Math.floor(Math.random()*Range);
+  };
+  this.Trunc = function (A) {
+    if (!Math.trunc) {
+      Math.trunc = function(v) {
+        v = +v;
+        if (!isFinite(v)) return v;
+        return (v - v % 1) || (v < 0 ? -0 : v === 0 ? v : 0);
+      };
+    }
+    $mod.Trunc = Math.trunc;
+    return Math.trunc(A);
+  };
   this.Writeln = function () {
     var i = 0;
     var l = 0;
@@ -1215,9 +1229,318 @@ rtl.module("JS",["System"],function () {
   "use strict";
   var $mod = this;
 });
+rtl.module("SysUtils",["System","JS"],function () {
+  "use strict";
+  var $mod = this;
+  rtl.createClass($mod,"Exception",pas.System.TObject,function () {
+    this.$init = function () {
+      pas.System.TObject.$init.call(this);
+      this.fMessage = "";
+    };
+    this.Create$1 = function (Msg) {
+      this.fMessage = Msg;
+    };
+  });
+  this.IntToStr = function (Value) {
+    var Result = "";
+    Result = "" + Value;
+    return Result;
+  };
+  rtl.createClass($mod,"TFormatSettings",pas.System.TObject,function () {
+  });
+  this.FormatSettings = null;
+  $mod.$init = function () {
+    $mod.FormatSettings = $mod.TFormatSettings.$create("Create");
+  };
+});
+rtl.module("math",["System","SysUtils"],function () {
+  "use strict";
+  var $mod = this;
+  this.Floor = function (A) {
+    var Result = 0;
+    Result = pas.System.Trunc(Math.floor(A));
+    return Result;
+  };
+});
+rtl.module("Noise",["System","SysUtils","math"],function () {
+  "use strict";
+  var $mod = this;
+  this.kNoisekPerumationMax = 256;
+  rtl.createClass($mod,"TNoise",pas.System.TObject,function () {
+    this.$init = function () {
+      pas.System.TObject.$init.call(this);
+      this.repeatValue = 0;
+      this.p = rtl.arraySetLength(null,0,512);
+    };
+    this.$final = function () {
+      this.p = undefined;
+      pas.System.TObject.$final.call(this);
+    };
+    this.Create$2 = function (seed) {
+      var i = 0;
+      this.repeatValue = -1;
+      for (i = 0; i <= 511; i++) this.p[i] = seed[i % 256];
+    };
+    this.GetValue = function (x, y, z) {
+      var Self = this;
+      var Result = 0.0;
+      function FMod(a, b) {
+        var Result = 0.0;
+        Result = a - (b * pas.System.Trunc(a / b));
+        return Result;
+      };
+      var xi = 0;
+      var yi = 0;
+      var zi = 0;
+      var xf = 0.0;
+      var yf = 0.0;
+      var zf = 0.0;
+      var u = 0.0;
+      var v = 0.0;
+      var w = 0.0;
+      var aaa = 0;
+      var aba = 0;
+      var aab = 0;
+      var abb = 0;
+      var baa = 0;
+      var bba = 0;
+      var bab = 0;
+      var bbb = 0;
+      var x1 = 0.0;
+      var x2 = 0.0;
+      var y1 = 0.0;
+      var y2 = 0.0;
+      if (Self.repeatValue > 0) {
+        x = FMod(x,Self.repeatValue);
+        y = FMod(y,Self.repeatValue);
+        z = FMod(z,Self.repeatValue);
+      };
+      xi = pas.math.Floor(x) & 255;
+      yi = pas.math.Floor(y) & 255;
+      zi = pas.math.Floor(z) & 255;
+      xf = x - pas.math.Floor(x);
+      yf = y - pas.math.Floor(y);
+      zf = z - pas.math.Floor(z);
+      u = Self.Fade(xf);
+      v = Self.Fade(yf);
+      w = Self.Fade(zf);
+      aaa = Self.p[Self.p[Self.p[xi] + yi] + zi];
+      aba = Self.p[Self.p[Self.p[xi] + Self.Inc(yi)] + zi];
+      aab = Self.p[Self.p[Self.p[xi] + yi] + Self.Inc(zi)];
+      abb = Self.p[Self.p[Self.p[xi] + Self.Inc(yi)] + Self.Inc(zi)];
+      baa = Self.p[Self.p[Self.p[Self.Inc(xi)] + yi] + zi];
+      bba = Self.p[Self.p[Self.p[Self.Inc(xi)] + Self.Inc(yi)] + zi];
+      bab = Self.p[Self.p[Self.p[Self.Inc(xi)] + yi] + Self.Inc(zi)];
+      bbb = Self.p[Self.p[Self.p[Self.Inc(xi)] + Self.Inc(yi)] + Self.Inc(zi)];
+      x1 = Self.Lerp(Self.Grad(aaa,xf,yf,zf),Self.Grad(baa,xf - 1,yf,zf),u);
+      x2 = Self.Lerp(Self.Grad(aba,xf,yf - 1,zf),Self.Grad(bba,xf - 1,yf - 1,zf),u);
+      y1 = Self.Lerp(x1,x2,v);
+      x1 = Self.Lerp(Self.Grad(aab,xf,yf,zf - 1),Self.Grad(bab,xf - 1,yf,zf - 1),u);
+      x2 = Self.Lerp(Self.Grad(abb,xf,yf - 1,zf - 1),Self.Grad(bbb,xf - 1,yf - 1,zf - 1),u);
+      y2 = Self.Lerp(x1,x2,v);
+      Result = (Self.Lerp(y1,y2,w) + 1) / 2;
+      return Result;
+    };
+    this.GetValue$1 = function (x, y, z, octaves, persistence) {
+      var Result = 0.0;
+      var total = 0;
+      var frequency = 1;
+      var amplitude = 1;
+      var maxValue = 0;
+      var i = 0;
+      for (var $l1 = 0, $end2 = octaves - 1; $l1 <= $end2; $l1++) {
+        i = $l1;
+        total += this.GetValue(x * frequency,y * frequency,z * frequency) * amplitude;
+        maxValue += amplitude;
+        amplitude *= persistence;
+        frequency *= 2;
+      };
+      Result = total / maxValue;
+      return Result;
+    };
+    this.GetNoise = function (x, y, width, height, scale, frequency) {
+      var Result = 0.0;
+      var nx = 0.0;
+      var ny = 0.0;
+      nx = (x / width) - 0.5;
+      ny = (y / height) - 0.5;
+      Result = (this.GetValue$1(nx * scale,ny * scale,0,frequency,0.5) / 2) + 0.5;
+      return Result;
+    };
+    this.Inc = function (num) {
+      var Result = 0;
+      num += 1;
+      if (this.repeatValue > 0) num = num % this.repeatValue;
+      Result = num;
+      return Result;
+    };
+    this.Grad = function (hash, x, y, z) {
+      var Result = 0.0;
+      var $tmp1 = hash & 0xF;
+      if ($tmp1 === 0x0) {
+        Result = x + y}
+       else if ($tmp1 === 0x1) {
+        Result = -x + y}
+       else if ($tmp1 === 0x2) {
+        Result = x - y}
+       else if ($tmp1 === 0x3) {
+        Result = -x - y}
+       else if ($tmp1 === 0x4) {
+        Result = x + z}
+       else if ($tmp1 === 0x5) {
+        Result = -x + z}
+       else if ($tmp1 === 0x6) {
+        Result = x - z}
+       else if ($tmp1 === 0x7) {
+        Result = -x - z}
+       else if ($tmp1 === 0x8) {
+        Result = y + z}
+       else if ($tmp1 === 0x9) {
+        Result = -y + z}
+       else if ($tmp1 === 0xA) {
+        Result = y - z}
+       else if ($tmp1 === 0xB) {
+        Result = -y - z}
+       else if ($tmp1 === 0xC) {
+        Result = y + x}
+       else if ($tmp1 === 0xD) {
+        Result = -y + z}
+       else if ($tmp1 === 0xE) {
+        Result = y - x}
+       else if ($tmp1 === 0xF) {
+        Result = -y - z}
+       else {
+        Result = 0;
+      };
+      return Result;
+    };
+    this.Fade = function (t) {
+      var Result = 0.0;
+      Result = ((t * t) * t) * ((t * ((t * 6) - 15)) + 10);
+      return Result;
+    };
+    this.Lerp = function (a, b, x) {
+      var Result = 0.0;
+      Result = a + (x * (b - a));
+      return Result;
+    };
+  });
+  this.RandomNoiseSeed = function (seed) {
+    var Result = rtl.arraySetLength(null,0,256);
+    var i = 0;
+    for (i = 0; i <= 255; i++) Result[i] = pas.System.Random(256);
+    return Result;
+  };
+});
+rtl.module("Matrix",["System","JS"],function () {
+  "use strict";
+  var $mod = this;
+  rtl.createClass($mod,"TMatrix",pas.System.TObject,function () {
+    this.$init = function () {
+      pas.System.TObject.$init.call(this);
+      this.table = null;
+      this.width = 0;
+      this.height = 0;
+    };
+    this.$final = function () {
+      this.table = undefined;
+      pas.System.TObject.$final.call(this);
+    };
+    this.Create$1 = function (w, h) {
+      this.width = w;
+      this.height = h;
+      this.table = new Array(this.width * this.height);
+    };
+    this.SetValue = function (x, y, value) {
+      this.table[this.IndexFor(x,y)] = value;
+    };
+    this.GetValue = function (x, y) {
+      var Result = undefined;
+      Result = this.table[this.IndexFor(x,y)];
+      return Result;
+    };
+    this.GetWidth = function () {
+      var Result = 0;
+      Result = this.width;
+      return Result;
+    };
+    this.GetHeight = function () {
+      var Result = 0;
+      Result = this.height;
+      return Result;
+    };
+    this.IndexFor = function (x, y) {
+      var Result = 0;
+      Result = x + (y * this.height);
+      return Result;
+    };
+  });
+});
 rtl.module("Web",["System","JS"],function () {
   "use strict";
   var $mod = this;
+});
+rtl.module("webgl",["System","JS","Web"],function () {
+  "use strict";
+  var $mod = this;
+});
+rtl.module("GLTypes",["System","webgl","JS","math","SysUtils"],function () {
+  "use strict";
+  var $mod = this;
+  this.TVec2 = function (s) {
+    if (s) {
+      this.x = s.x;
+      this.y = s.y;
+    } else {
+      this.x = 0.0;
+      this.y = 0.0;
+    };
+    this.$equal = function (b) {
+      return (this.x === b.x) && (this.y === b.y);
+    };
+  };
+  this.TVec3 = function (s) {
+    if (s) {
+      this.x = s.x;
+      this.y = s.y;
+      this.z = s.z;
+    } else {
+      this.x = 0.0;
+      this.y = 0.0;
+      this.z = 0.0;
+    };
+    this.$equal = function (b) {
+      return (this.x === b.x) && ((this.y === b.y) && (this.z === b.z));
+    };
+  };
+  this.V3 = function (x, y, z) {
+    var Result = new $mod.TVec3();
+    Result.x = x;
+    Result.y = y;
+    Result.z = z;
+    return Result;
+  };
+  this.Divide = function (v, amount) {
+    var Result = new $mod.TVec3();
+    Result = new $mod.TVec3($mod.V3(v.x / amount,v.y / amount,v.z / amount));
+    return Result;
+  };
+  this.Magnitude = function (v) {
+    var Result = 0.0;
+    Result = Math.sqrt((Math.pow(v.x,2) + Math.pow(v.y,2)) + Math.pow(v.z,2));
+    return Result;
+  };
+  this.Normalize = function (v) {
+    var Result = new $mod.TVec3();
+    Result = new $mod.TVec3($mod.Divide(new $mod.TVec3(v),$mod.Magnitude(new $mod.TVec3(v))));
+    return Result;
+  };
+  this.V2 = function (x, y) {
+    var Result = new $mod.TVec2();
+    Result.x = x;
+    Result.y = y;
+    return Result;
+  };
 });
 rtl.module("browserconsole",["System","JS","Web"],function () {
   "use strict";
@@ -1297,30 +1620,6 @@ rtl.module("browserconsole",["System","JS","Web"],function () {
     };
   };
 });
-rtl.module("SysUtils",["System","JS"],function () {
-  "use strict";
-  var $mod = this;
-  this.IntToStr = function (Value) {
-    var Result = "";
-    Result = "" + Value;
-    return Result;
-  };
-  rtl.createClass($mod,"TFormatSettings",pas.System.TObject,function () {
-  });
-  this.FormatSettings = null;
-  $mod.$init = function () {
-    $mod.FormatSettings = $mod.TFormatSettings.$create("Create");
-  };
-});
-rtl.module("math",["System","SysUtils"],function () {
-  "use strict";
-  var $mod = this;
-  this.DegToRad = function (deg) {
-    var Result = 0.0;
-    Result = deg * (Math.PI / 180.0);
-    return Result;
-  };
-});
 rtl.module("Mat4",["System","browserconsole","JS","math"],function () {
   "use strict";
   var $mod = this;
@@ -1370,54 +1669,24 @@ rtl.module("Mat4",["System","browserconsole","JS","math"],function () {
       this.RawComponents[3][2] = tz;
       this.RawComponents[3][3] = 1.0;
     };
-    this.RotateZ = function (Angle) {
-      $mod.SinCos(Angle,{a: 1, p: this.RawComponents[0], get: function () {
-          return this.p[this.a];
-        }, set: function (v) {
-          this.p[this.a] = v;
-        }},{a: 0, p: this.RawComponents[0], get: function () {
-          return this.p[this.a];
-        }, set: function (v) {
-          this.p[this.a] = v;
-        }});
-      this.RawComponents[0][2] = 0.0;
-      this.RawComponents[0][3] = 0.0;
-      this.RawComponents[1][0] = -this.RawComponents[0][1];
-      this.RawComponents[1][1] = this.RawComponents[0][0];
-      this.RawComponents[1][2] = 0.0;
-      this.RawComponents[1][3] = 0.0;
-      this.RawComponents[2][0] = 0.0;
-      this.RawComponents[2][1] = 0.0;
-      this.RawComponents[2][2] = 1.0;
-      this.RawComponents[2][3] = 0.0;
-      this.RawComponents[3][0] = 0.0;
-      this.RawComponents[3][1] = 0.0;
-      this.RawComponents[3][2] = 0.0;
-      this.RawComponents[3][3] = 1.0;
-    };
-    this.Ortho = function (Left, Right, Bottom, Top, zNear, zFar) {
-      var rml = 0.0;
-      var tmb = 0.0;
-      var fmn = 0.0;
-      rml = Right - Left;
-      tmb = Top - Bottom;
-      fmn = zFar - zNear;
-      this.RawComponents[0][0] = 2.0 / rml;
-      this.RawComponents[0][1] = 0.0;
-      this.RawComponents[0][2] = 0.0;
-      this.RawComponents[0][3] = 0.0;
-      this.RawComponents[1][0] = 0.0;
-      this.RawComponents[1][1] = 2.0 / tmb;
-      this.RawComponents[1][2] = 0.0;
-      this.RawComponents[1][3] = 0.0;
-      this.RawComponents[2][0] = 0.0;
-      this.RawComponents[2][1] = 0.0;
-      this.RawComponents[2][2] = -2.0 / fmn;
-      this.RawComponents[2][3] = 0.0;
-      this.RawComponents[3][0] = -(Right + Left) / rml;
-      this.RawComponents[3][1] = -(Top + Bottom) / tmb;
-      this.RawComponents[3][2] = -(zFar + zNear) / fmn;
-      this.RawComponents[3][3] = 1.0;
+    this.Perspective = function (fovy, Aspect, zNear, zFar) {
+      var Sine = 0.0;
+      var Cotangent = 0.0;
+      var ZDelta = 0.0;
+      var Radians = 0.0;
+      Radians = (fovy * 0.5) * 0.017453292519944444;
+      ZDelta = zFar - zNear;
+      Sine = Math.sin(Radians);
+      if (!(((ZDelta === 0) || (Sine === 0)) || (Aspect === 0))) {
+        Cotangent = Math.cos(Radians) / Sine;
+        this.RawComponents = $impl.Matrix4x4Identity.RawComponents.slice(0);
+        this.RawComponents[0][0] = Cotangent / Aspect;
+        this.RawComponents[1][1] = Cotangent;
+        this.RawComponents[2][2] = -(zFar + zNear) / ZDelta;
+        this.RawComponents[2][3] = -1 - 0;
+        this.RawComponents[3][2] = -((2.0 * zNear) * zFar) / ZDelta;
+        this.RawComponents[3][3] = 0.0;
+      };
     };
     this.Multiply = function (m) {
       var Result = null;
@@ -1440,6 +1709,40 @@ rtl.module("Mat4",["System","browserconsole","JS","math"],function () {
       Result.RawComponents[3][3] = (((m.RawComponents[3][0] * this.RawComponents[0][3]) + (m.RawComponents[3][1] * this.RawComponents[1][3])) + (m.RawComponents[3][2] * this.RawComponents[2][3])) + (m.RawComponents[3][3] * this.RawComponents[3][3]);
       return Result;
     };
+    this.Inverse = function () {
+      var Result = null;
+      var t0 = 0.0;
+      var t4 = 0.0;
+      var t8 = 0.0;
+      var t12 = 0.0;
+      var d = 0.0;
+      t0 = ((((((this.RawComponents[1][1] * this.RawComponents[2][2]) * this.RawComponents[3][3]) - ((this.RawComponents[1][1] * this.RawComponents[2][3]) * this.RawComponents[3][2])) - ((this.RawComponents[2][1] * this.RawComponents[1][2]) * this.RawComponents[3][3])) + ((this.RawComponents[2][1] * this.RawComponents[1][3]) * this.RawComponents[3][2])) + ((this.RawComponents[3][1] * this.RawComponents[1][2]) * this.RawComponents[2][3])) - ((this.RawComponents[3][1] * this.RawComponents[1][3]) * this.RawComponents[2][2]);
+      t4 = ((((-((this.RawComponents[1][0] * this.RawComponents[2][2]) * this.RawComponents[3][3]) + ((this.RawComponents[1][0] * this.RawComponents[2][3]) * this.RawComponents[3][2])) + ((this.RawComponents[2][0] * this.RawComponents[1][2]) * this.RawComponents[3][3])) - ((this.RawComponents[2][0] * this.RawComponents[1][3]) * this.RawComponents[3][2])) - ((this.RawComponents[3][0] * this.RawComponents[1][2]) * this.RawComponents[2][3])) + ((this.RawComponents[3][0] * this.RawComponents[1][3]) * this.RawComponents[2][2]);
+      t8 = ((((((this.RawComponents[1][0] * this.RawComponents[2][1]) * this.RawComponents[3][3]) - ((this.RawComponents[1][0] * this.RawComponents[2][3]) * this.RawComponents[3][1])) - ((this.RawComponents[2][0] * this.RawComponents[1][1]) * this.RawComponents[3][3])) + ((this.RawComponents[2][0] * this.RawComponents[1][3]) * this.RawComponents[3][1])) + ((this.RawComponents[3][0] * this.RawComponents[1][1]) * this.RawComponents[2][3])) - ((this.RawComponents[3][0] * this.RawComponents[1][3]) * this.RawComponents[2][1]);
+      t12 = ((((-((this.RawComponents[1][0] * this.RawComponents[2][1]) * this.RawComponents[3][2]) + ((this.RawComponents[1][0] * this.RawComponents[2][2]) * this.RawComponents[3][1])) + ((this.RawComponents[2][0] * this.RawComponents[1][1]) * this.RawComponents[3][2])) - ((this.RawComponents[2][0] * this.RawComponents[1][2]) * this.RawComponents[3][1])) - ((this.RawComponents[3][0] * this.RawComponents[1][1]) * this.RawComponents[2][2])) + ((this.RawComponents[3][0] * this.RawComponents[1][2]) * this.RawComponents[2][1]);
+      d = (((this.RawComponents[0][0] * t0) + (this.RawComponents[0][1] * t4)) + (this.RawComponents[0][2] * t8)) + (this.RawComponents[0][3] * t12);
+      Result = $mod.TMat4.$create("Identity");
+      if (d !== 0.0) {
+        d = 1.0 / d;
+        Result.RawComponents[0][0] = t0 * d;
+        Result.RawComponents[0][1] = (((((-((this.RawComponents[0][1] * this.RawComponents[2][2]) * this.RawComponents[3][3]) + ((this.RawComponents[0][1] * this.RawComponents[2][3]) * this.RawComponents[3][2])) + ((this.RawComponents[2][1] * this.RawComponents[0][2]) * this.RawComponents[3][3])) - ((this.RawComponents[2][1] * this.RawComponents[0][3]) * this.RawComponents[3][2])) - ((this.RawComponents[3][1] * this.RawComponents[0][2]) * this.RawComponents[2][3])) + ((this.RawComponents[3][1] * this.RawComponents[0][3]) * this.RawComponents[2][2])) * d;
+        Result.RawComponents[0][2] = (((((((this.RawComponents[0][1] * this.RawComponents[1][2]) * this.RawComponents[3][3]) - ((this.RawComponents[0][1] * this.RawComponents[1][3]) * this.RawComponents[3][2])) - ((this.RawComponents[1][1] * this.RawComponents[0][2]) * this.RawComponents[3][3])) + ((this.RawComponents[1][1] * this.RawComponents[0][3]) * this.RawComponents[3][2])) + ((this.RawComponents[3][1] * this.RawComponents[0][2]) * this.RawComponents[1][3])) - ((this.RawComponents[3][1] * this.RawComponents[0][3]) * this.RawComponents[1][2])) * d;
+        Result.RawComponents[0][3] = (((((-((this.RawComponents[0][1] * this.RawComponents[1][2]) * this.RawComponents[2][3]) + ((this.RawComponents[0][1] * this.RawComponents[1][3]) * this.RawComponents[2][2])) + ((this.RawComponents[1][1] * this.RawComponents[0][2]) * this.RawComponents[2][3])) - ((this.RawComponents[1][1] * this.RawComponents[0][3]) * this.RawComponents[2][2])) - ((this.RawComponents[2][1] * this.RawComponents[0][2]) * this.RawComponents[1][3])) + ((this.RawComponents[2][1] * this.RawComponents[0][3]) * this.RawComponents[1][2])) * d;
+        Result.RawComponents[1][0] = t4 * d;
+        Result.RawComponents[1][1] = (((((((this.RawComponents[0][0] * this.RawComponents[2][2]) * this.RawComponents[3][3]) - ((this.RawComponents[0][0] * this.RawComponents[2][3]) * this.RawComponents[3][2])) - ((this.RawComponents[2][0] * this.RawComponents[0][2]) * this.RawComponents[3][3])) + ((this.RawComponents[2][0] * this.RawComponents[0][3]) * this.RawComponents[3][2])) + ((this.RawComponents[3][0] * this.RawComponents[0][2]) * this.RawComponents[2][3])) - ((this.RawComponents[3][0] * this.RawComponents[0][3]) * this.RawComponents[2][2])) * d;
+        Result.RawComponents[1][2] = (((((-((this.RawComponents[0][0] * this.RawComponents[1][2]) * this.RawComponents[3][3]) + ((this.RawComponents[0][0] * this.RawComponents[1][3]) * this.RawComponents[3][2])) + ((this.RawComponents[1][0] * this.RawComponents[0][2]) * this.RawComponents[3][3])) - ((this.RawComponents[1][0] * this.RawComponents[0][3]) * this.RawComponents[3][2])) - ((this.RawComponents[3][0] * this.RawComponents[0][2]) * this.RawComponents[1][3])) + ((this.RawComponents[3][0] * this.RawComponents[0][3]) * this.RawComponents[1][2])) * d;
+        Result.RawComponents[1][3] = (((((((this.RawComponents[0][0] * this.RawComponents[1][2]) * this.RawComponents[2][3]) - ((this.RawComponents[0][0] * this.RawComponents[1][3]) * this.RawComponents[2][2])) - ((this.RawComponents[1][0] * this.RawComponents[0][2]) * this.RawComponents[2][3])) + ((this.RawComponents[1][0] * this.RawComponents[0][3]) * this.RawComponents[2][2])) + ((this.RawComponents[2][0] * this.RawComponents[0][2]) * this.RawComponents[1][3])) - ((this.RawComponents[2][0] * this.RawComponents[0][3]) * this.RawComponents[1][2])) * d;
+        Result.RawComponents[2][0] = t8 * d;
+        Result.RawComponents[2][1] = (((((-((this.RawComponents[0][0] * this.RawComponents[2][1]) * this.RawComponents[3][3]) + ((this.RawComponents[0][0] * this.RawComponents[2][3]) * this.RawComponents[3][1])) + ((this.RawComponents[2][0] * this.RawComponents[0][1]) * this.RawComponents[3][3])) - ((this.RawComponents[2][0] * this.RawComponents[0][3]) * this.RawComponents[3][1])) - ((this.RawComponents[3][0] * this.RawComponents[0][1]) * this.RawComponents[2][3])) + ((this.RawComponents[3][0] * this.RawComponents[0][3]) * this.RawComponents[2][1])) * d;
+        Result.RawComponents[2][2] = (((((((this.RawComponents[0][0] * this.RawComponents[1][1]) * this.RawComponents[3][3]) - ((this.RawComponents[0][0] * this.RawComponents[1][3]) * this.RawComponents[3][1])) - ((this.RawComponents[1][0] * this.RawComponents[0][1]) * this.RawComponents[3][3])) + ((this.RawComponents[1][0] * this.RawComponents[0][3]) * this.RawComponents[3][1])) + ((this.RawComponents[3][0] * this.RawComponents[0][1]) * this.RawComponents[1][3])) - ((this.RawComponents[3][0] * this.RawComponents[0][3]) * this.RawComponents[1][1])) * d;
+        Result.RawComponents[2][3] = (((((-((this.RawComponents[0][0] * this.RawComponents[1][1]) * this.RawComponents[2][3]) + ((this.RawComponents[0][0] * this.RawComponents[1][3]) * this.RawComponents[2][1])) + ((this.RawComponents[1][0] * this.RawComponents[0][1]) * this.RawComponents[2][3])) - ((this.RawComponents[1][0] * this.RawComponents[0][3]) * this.RawComponents[2][1])) - ((this.RawComponents[2][0] * this.RawComponents[0][1]) * this.RawComponents[1][3])) + ((this.RawComponents[2][0] * this.RawComponents[0][3]) * this.RawComponents[1][1])) * d;
+        Result.RawComponents[3][0] = t12 * d;
+        Result.RawComponents[3][1] = (((((((this.RawComponents[0][0] * this.RawComponents[2][1]) * this.RawComponents[3][2]) - ((this.RawComponents[0][0] * this.RawComponents[2][2]) * this.RawComponents[3][1])) - ((this.RawComponents[2][0] * this.RawComponents[0][1]) * this.RawComponents[3][2])) + ((this.RawComponents[2][0] * this.RawComponents[0][2]) * this.RawComponents[3][1])) + ((this.RawComponents[3][0] * this.RawComponents[0][1]) * this.RawComponents[2][2])) - ((this.RawComponents[3][0] * this.RawComponents[0][2]) * this.RawComponents[2][1])) * d;
+        Result.RawComponents[3][2] = (((((-((this.RawComponents[0][0] * this.RawComponents[1][1]) * this.RawComponents[3][2]) + ((this.RawComponents[0][0] * this.RawComponents[1][2]) * this.RawComponents[3][1])) + ((this.RawComponents[1][0] * this.RawComponents[0][1]) * this.RawComponents[3][2])) - ((this.RawComponents[1][0] * this.RawComponents[0][2]) * this.RawComponents[3][1])) - ((this.RawComponents[3][0] * this.RawComponents[0][1]) * this.RawComponents[1][2])) + ((this.RawComponents[3][0] * this.RawComponents[0][2]) * this.RawComponents[1][1])) * d;
+        Result.RawComponents[3][3] = (((((((this.RawComponents[0][0] * this.RawComponents[1][1]) * this.RawComponents[2][2]) - ((this.RawComponents[0][0] * this.RawComponents[1][2]) * this.RawComponents[2][1])) - ((this.RawComponents[1][0] * this.RawComponents[0][1]) * this.RawComponents[2][2])) + ((this.RawComponents[1][0] * this.RawComponents[0][2]) * this.RawComponents[2][1])) + ((this.RawComponents[2][0] * this.RawComponents[0][1]) * this.RawComponents[1][2])) - ((this.RawComponents[2][0] * this.RawComponents[0][2]) * this.RawComponents[1][1])) * d;
+      };
+      return Result;
+    };
     this.CopyList = function () {
       var Result = [];
       var x = 0;
@@ -1451,10 +1754,6 @@ rtl.module("Mat4",["System","browserconsole","JS","math"],function () {
       return Result;
     };
   });
-  this.SinCos = function (angle, sinus, cosinus) {
-    sinus.set(Math.sin(angle));
-    cosinus.set(Math.cos(angle));
-  };
   $mod.$init = function () {
     $impl.Matrix4x4Identity = $mod.TMat4.$create("Identity");
   };
@@ -1462,79 +1761,9 @@ rtl.module("Mat4",["System","browserconsole","JS","math"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
+  $impl.PI = 3.14159265359;
+  $impl.DEG2RAD = 3.14159265359 / 180.0;
   $impl.Matrix4x4Identity = null;
-});
-rtl.module("MemoryBuffer",["System","JS"],function () {
-  "use strict";
-  var $mod = this;
-  rtl.createClass($mod,"TMemoryBuffer",pas.System.TObject,function () {
-    this.$init = function () {
-      pas.System.TObject.$init.call(this);
-      this.byteBuffer = null;
-      this.byteOffset = 0;
-      this.floatBuffer = null;
-    };
-    this.$final = function () {
-      this.byteBuffer = undefined;
-      this.floatBuffer = undefined;
-      pas.System.TObject.$final.call(this);
-    };
-    this.Create$1 = function (size) {
-      this.byteBuffer = new Uint8Array(size);
-    };
-    this.AddBytes = function (count, data) {
-      this.byteBuffer.set(data,this.byteOffset);
-      this.byteOffset = this.byteOffset + (count * 1);
-    };
-    this.AddFloats = function (count, data) {
-      var floatOffset = 0;
-      floatOffset = Math.floor(this.byteOffset / 4);
-      if (this.floatBuffer === null) this.floatBuffer = new Float32Array(this.byteBuffer.buffer,0,Math.floor(this.byteBuffer.byteLength / 4));
-      this.floatBuffer.set(data,floatOffset);
-      this.byteOffset = this.byteOffset + (count * 4);
-    };
-  });
-});
-rtl.module("webgl",["System","JS","Web"],function () {
-  "use strict";
-  var $mod = this;
-});
-rtl.module("GLTypes",["System","webgl","JS"],function () {
-  "use strict";
-  var $mod = this;
-  this.TVec2 = function (s) {
-    if (s) {
-      this.x = s.x;
-      this.y = s.y;
-    } else {
-      this.x = 0.0;
-      this.y = 0.0;
-    };
-    this.$equal = function (b) {
-      return (this.x === b.x) && (this.y === b.y);
-    };
-  };
-  this.V2 = function (x, y) {
-    var Result = new $mod.TVec2();
-    Result.x = x;
-    Result.y = y;
-    return Result;
-  };
-  this.ToFloats$1 = function (v) {
-    var Result = [];
-    Result = rtl.arraySetLength(Result,0.0,2);
-    Result[0] = v.x;
-    Result[1] = v.y;
-    return Result;
-  };
-  this.RGBAb = function (r, g, b, a) {
-    var Result = [];
-    Result[0] = r;
-    Result[1] = g;
-    Result[2] = b;
-    Result[3] = a;
-    return Result;
-  };
 });
 rtl.module("GLUtils",["System","Mat4","GLTypes","browserconsole","Web","webgl","JS","math","SysUtils"],function () {
   "use strict";
@@ -1581,12 +1810,20 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","browserconsole","Web","webgl","
       var list = [];
       list = value.CopyList();
       this.gl.uniformMatrix4fv(this.GetUniformLocation(name),false,list);
-      $impl.GLFatal(this.gl,"gl.uniformMatrix4fv");
+      $mod.GLFatal(this.gl,"gl.uniformMatrix4fv");
+    };
+    this.SetUniformVec3 = function (name, value) {
+      this.gl.uniform3f(this.GetUniformLocation(name),value.x,value.y,value.z);
+      $mod.GLFatal(this.gl,"gl.uniform3fv");
+    };
+    this.SetUniformFloat = function (name, value) {
+      this.gl.uniform1f(this.GetUniformLocation(name),value);
+      $mod.GLFatal(this.gl,"gl.uniform1f");
     };
     this.GetUniformLocation = function (name) {
       var Result = null;
       Result = this.gl.getUniformLocation(this.programID,name);
-      $impl.GLFatal(this.gl,"gl.getUniformLocation");
+      $mod.GLFatal(this.gl,"gl.getUniformLocation");
       return Result;
     };
     this.CreateShader = function (theType, source) {
@@ -1602,6 +1839,99 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","browserconsole","Web","webgl","
         $impl.Fatal$1(this.gl.getShaderInfoLog(shader));
       };
       return Result;
+    };
+  });
+  this.TModelData = function (s) {
+    if (s) {
+      this.verticies = s.verticies;
+      this.indicies = s.indicies;
+      this.floatsPerVertex = s.floatsPerVertex;
+    } else {
+      this.verticies = null;
+      this.indicies = null;
+      this.floatsPerVertex = 0;
+    };
+    this.$equal = function (b) {
+      return (this.verticies === b.verticies) && ((this.indicies === b.indicies) && (this.floatsPerVertex === b.floatsPerVertex));
+    };
+  };
+  this.kModelVertexFloats = (3 + 2) + 3;
+  this.TModelVertex = function (s) {
+    if (s) {
+      this.pos = new pas.GLTypes.TVec3(s.pos);
+      this.texCoord = new pas.GLTypes.TVec2(s.texCoord);
+      this.normal = new pas.GLTypes.TVec3(s.normal);
+    } else {
+      this.pos = new pas.GLTypes.TVec3();
+      this.texCoord = new pas.GLTypes.TVec2();
+      this.normal = new pas.GLTypes.TVec3();
+    };
+    this.$equal = function (b) {
+      return this.pos.$equal(b.pos) && (this.texCoord.$equal(b.texCoord) && this.normal.$equal(b.normal));
+    };
+  };
+  this.ModelVertexAddToArray = function (vertex, list) {
+    list.push(vertex.pos.x);
+    list.push(vertex.pos.y);
+    list.push(vertex.pos.z);
+    list.push(vertex.texCoord.x);
+    list.push(vertex.texCoord.y);
+    list.push(vertex.normal.x);
+    list.push(vertex.normal.y);
+    list.push(vertex.normal.z);
+  };
+  rtl.createClass($mod,"TModel",pas.System.TObject,function () {
+    this.$init = function () {
+      pas.System.TObject.$init.call(this);
+      this.gl = null;
+      this.data = new $mod.TModelData();
+      this.vertexBuffer = null;
+      this.indexBuffer = null;
+    };
+    this.$final = function () {
+      this.gl = undefined;
+      this.data = undefined;
+      this.vertexBuffer = undefined;
+      this.indexBuffer = undefined;
+      pas.System.TObject.$final.call(this);
+    };
+    this.Create$1 = function (context, modelData) {
+      this.gl = context;
+      this.data = new $mod.TModelData(modelData);
+      this.Load();
+    };
+    this.Draw = function () {
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER,this.vertexBuffer);
+      this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
+      this.EnableAttributes();
+      this.gl.drawElements(this.gl.TRIANGLES,this.data.indicies.length,this.gl.UNSIGNED_SHORT,0);
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER,null);
+      this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER,null);
+    };
+    this.EnableAttributes = function () {
+      var offset = 0;
+      var stride = 0;
+      offset = 0;
+      stride = this.data.floatsPerVertex * $mod.GLSizeof(WebGLRenderingContext.FLOAT);
+      this.gl.enableVertexAttribArray(0);
+      this.gl.vertexAttribPointer(0,3,this.gl.FLOAT,false,stride,offset);
+      offset += $mod.GLSizeof(WebGLRenderingContext.FLOAT) * 3;
+      this.gl.enableVertexAttribArray(1);
+      this.gl.vertexAttribPointer(1,2,this.gl.FLOAT,false,stride,offset);
+      offset += $mod.GLSizeof(WebGLRenderingContext.FLOAT) * 2;
+      this.gl.enableVertexAttribArray(2);
+      this.gl.vertexAttribPointer(2,3,this.gl.FLOAT,false,stride,offset);
+      offset += $mod.GLSizeof(WebGLRenderingContext.FLOAT) * 3;
+    };
+    this.Load = function () {
+      this.indexBuffer = this.gl.createBuffer();
+      this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
+      this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER,this.data.indicies,this.gl.STATIC_DRAW);
+      this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER,null);
+      this.vertexBuffer = this.gl.createBuffer();
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER,this.vertexBuffer);
+      this.gl.bufferData(this.gl.ARRAY_BUFFER,this.data.verticies,this.gl.STATIC_DRAW);
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER,null);
     };
   });
   this.GLSizeof = function (glType) {
@@ -1620,19 +1950,7 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","browserconsole","Web","webgl","
     };
     return Result;
   };
-},null,function () {
-  "use strict";
-  var $mod = this;
-  var $impl = $mod.$impl;
-  $impl.Fatal = function (messageString) {
-    pas.System.Writeln("*** FATAL: ",messageString);
-    return;
-  };
-  $impl.Fatal$1 = function (messageString) {
-    pas.System.Writeln("*** FATAL: ",messageString);
-    return;
-  };
-  $impl.GLFatal = function (gl, messageString) {
+  this.GLFatal = function (gl, messageString) {
     var error = 0;
     error = gl.getError();
     if (error !== WebGLRenderingContext.NO_ERROR) {
@@ -1649,81 +1967,231 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","browserconsole","Web","webgl","
       $impl.Fatal(messageString);
     };
   };
-});
-rtl.module("program",["System","Mat4","MemoryBuffer","GLUtils","GLTypes","SysUtils","browserconsole","Web","webgl","JS","math"],function () {
+},null,function () {
   "use strict";
   var $mod = this;
-  this.GLVertex2 = function (s) {
-    if (s) {
-      this.pos = new pas.GLTypes.TVec2(s.pos);
-      this.color = s.color;
-    } else {
-      this.pos = new pas.GLTypes.TVec2();
-      this.color = [];
-    };
-    this.$equal = function (b) {
-      return this.pos.$equal(b.pos) && (this.color === b.color);
-    };
+  var $impl = $mod.$impl;
+  $impl.Fatal = function (messageString) {
+    pas.System.Writeln("*** FATAL: ",messageString);
+    throw pas.SysUtils.Exception.$create("Create$1",["FATAL"]);
   };
-  this.kSIZEOF_VERTEX = 12;
-  this.GetVertexData = function () {
-    var Result = null;
-    var buffer = null;
-    var verts = null;
-    var v = new $mod.GLVertex2();
-    var i = 0;
-    verts = new Array();
-    v.pos = new pas.GLTypes.TVec2(pas.GLTypes.V2(0,0));
-    v.color = pas.GLTypes.RGBAb(255,0,0,255);
-    verts.push(new $mod.GLVertex2(v));
-    v.pos = new pas.GLTypes.TVec2(pas.GLTypes.V2(0,100));
-    v.color = pas.GLTypes.RGBAb(0,255,0,255);
-    verts.push(new $mod.GLVertex2(v));
-    v.pos = new pas.GLTypes.TVec2(pas.GLTypes.V2(100,100));
-    v.color = pas.GLTypes.RGBAb(0,0,255,255);
-    verts.push(new $mod.GLVertex2(v));
-    buffer = pas.MemoryBuffer.TMemoryBuffer.$create("Create$1",[12 * verts.length]);
-    for (var $l1 = 0, $end2 = verts.length - 1; $l1 <= $end2; $l1++) {
-      i = $l1;
-      v = new $mod.GLVertex2(rtl.getObject(verts[i]));
-      buffer.AddFloats(2,pas.GLTypes.ToFloats$1(new pas.GLTypes.TVec2(v.pos)));
-      buffer.AddBytes(4,v.color);
-    };
-    Result = buffer.byteBuffer;
-    return Result;
+  $impl.Fatal$1 = function (messageString) {
+    pas.System.Writeln("*** FATAL: ",messageString);
+    throw pas.SysUtils.Exception.$create("Create$1",["FATAL"]);
   };
-  this.nextTime = 0;
-  this.deltaTime = 0;
+});
+rtl.module("Terrain",["System","Noise","Matrix","GLTypes","GLUtils","webgl","JS","math"],function () {
+  "use strict";
+  var $mod = this;
+  rtl.createClass($mod,"TTerrain",pas.System.TObject,function () {
+    this.$init = function () {
+      pas.System.TObject.$init.call(this);
+      this.noise$1 = null;
+      this.gl = null;
+      this.noiseOffset = new pas.GLTypes.TVec2();
+      this.terrainSize = 0;
+      this.terrainResolution = 0;
+      this.heights = null;
+      this.model = null;
+    };
+    this.$final = function () {
+      this.noise$1 = undefined;
+      this.gl = undefined;
+      this.noiseOffset = undefined;
+      this.heights = undefined;
+      this.model = undefined;
+      pas.System.TObject.$final.call(this);
+    };
+    this.Create$2 = function (context, inNoise, size, resolution, offset) {
+      this.gl = context;
+      this.noise$1 = inNoise;
+      this.noiseOffset = new pas.GLTypes.TVec2(offset);
+      this.terrainSize = size;
+      this.terrainResolution = resolution;
+    };
+    this.GetHeightAtPoint = function (x, y) {
+      var Result = 0.0;
+      Result = rtl.getNumber(this.heights.GetValue(x,y));
+      return Result;
+    };
+    this.GetWidth = function () {
+      var Result = 0;
+      Result = this.heights.GetWidth();
+      return Result;
+    };
+    this.GetHeight = function () {
+      var Result = 0;
+      Result = this.heights.GetHeight();
+      return Result;
+    };
+    this.Draw = function () {
+      this.model.Draw();
+    };
+    this.Generate = function () {
+      var vertex = new pas.GLUtils.TModelVertex();
+      var topLeft = 0;
+      var topRight = 0;
+      var bottomLeft = 0;
+      var bottomRight = 0;
+      var x = 0;
+      var y = 0;
+      var gz = 0;
+      var gx = 0;
+      var verticies = null;
+      var indicies = null;
+      var data = new pas.GLUtils.TModelData();
+      if (this.noise$1 === null) this.noise$1 = pas.Noise.TNoise.$create("Create$2",[pas.Noise.RandomNoiseSeed(1).slice(0)]);
+      this.heights = pas.Matrix.TMatrix.$create("Create$1",[this.terrainResolution,this.terrainResolution]);
+      verticies = new Array();
+      indicies = new Array();
+      for (var $l1 = 0, $end2 = this.heights.GetWidth() - 1; $l1 <= $end2; $l1++) {
+        y = $l1;
+        for (var $l3 = 0, $end4 = this.heights.GetHeight() - 1; $l3 <= $end4; $l3++) {
+          x = $l3;
+          vertex.pos.x = (x / (this.heights.GetWidth() - 1)) * this.terrainSize;
+          vertex.pos.y = this.GetHeightForVertex(x,y,pas.System.Trunc(this.noiseOffset.x) + x,pas.System.Trunc(this.noiseOffset.y) + y);
+          vertex.pos.z = (y / (this.heights.GetHeight() - 1)) * this.terrainSize;
+          this.heights.SetValue(x,y,vertex.pos.y);
+          vertex.normal = new pas.GLTypes.TVec3(this.CalculateNormal(x,y,pas.System.Trunc(this.noiseOffset.x) + x,pas.System.Trunc(this.noiseOffset.y) + y));
+          vertex.texCoord.x = x / (this.heights.GetWidth() - 1);
+          vertex.texCoord.y = y / (this.heights.GetHeight() - 1);
+          pas.GLUtils.ModelVertexAddToArray(new pas.GLUtils.TModelVertex(vertex),verticies);
+        };
+      };
+      for (var $l5 = 0, $end6 = this.heights.GetWidth() - 2; $l5 <= $end6; $l5++) {
+        gz = $l5;
+        for (var $l7 = 0, $end8 = this.heights.GetHeight() - 2; $l7 <= $end8; $l7++) {
+          gx = $l7;
+          topLeft = (gz * this.heights.GetWidth()) + gx;
+          topRight = topLeft + 1;
+          bottomLeft = ((gz + 1) * this.heights.GetWidth()) + gx;
+          bottomRight = bottomLeft + 1;
+          indicies.push(topLeft);
+          indicies.push(bottomLeft);
+          indicies.push(topRight);
+          indicies.push(topRight);
+          indicies.push(bottomLeft);
+          indicies.push(bottomRight);
+        };
+      };
+      data.verticies = new Float32Array(verticies);
+      data.indicies = new Uint16Array(indicies);
+      data.floatsPerVertex = 8;
+      this.model = pas.GLUtils.TModel.$create("Create$1",[this.gl,new pas.GLUtils.TModelData(data)]);
+    };
+    this.GetHeightForVertex = function (localX, localY, x, y) {
+      var Result = 0.0;
+      Result = this.noise$1.GetNoise(x,y,this.heights.GetWidth(),this.heights.GetHeight(),4,3);
+      Result = Math.pow(Result,5);
+      Result = (Result * 20) - 6;
+      return Result;
+    };
+    this.CalculateNormal = function (localX, localY, x, y) {
+      var Result = new pas.GLTypes.TVec3();
+      var heightL = 0.0;
+      var heightR = 0.0;
+      var heightD = 0.0;
+      var heightU = 0.0;
+      heightL = this.GetHeightForVertex(localX,localY,x - 1,y);
+      heightR = this.GetHeightForVertex(localX,localY,x + 1,y);
+      heightD = this.GetHeightForVertex(localX,localY,x,y - 1);
+      heightU = this.GetHeightForVertex(localX,localY,x,y + 1);
+      Result = new pas.GLTypes.TVec3(pas.GLTypes.V3(heightL - heightR,2.0,heightD - heightU));
+      Result = new pas.GLTypes.TVec3(pas.GLTypes.Normalize(new pas.GLTypes.TVec3(Result)));
+      return Result;
+    };
+  });
+});
+rtl.module("program",["System","Terrain","Noise","Mat4","GLUtils","GLTypes","SysUtils","browserconsole","Web","webgl","JS","math"],function () {
+  "use strict";
+  var $mod = this;
   this.gl = null;
   this.shader = null;
   this.projTransform = null;
   this.viewTransform = null;
   this.modelTransform = null;
-  this.rotateAngle = 0;
-  this.UpdateCanvas = function (time) {
-    var now = 0.0;
-    now = time * 0.001;
-    $mod.deltaTime = now - $mod.nextTime;
-    $mod.nextTime = now;
-    $mod.modelTransform = pas.Mat4.TMat4.$create("Identity");
-    $mod.modelTransform = $mod.modelTransform.Multiply(pas.Mat4.TMat4.$create("Translate",[100,100,0]));
-    $mod.modelTransform = $mod.modelTransform.Multiply(pas.Mat4.TMat4.$create("RotateZ",[pas.math.DegToRad($mod.rotateAngle)]));
-    $mod.rotateAngle = $mod.rotateAngle + (20 * $mod.deltaTime);
-    $mod.shader.SetUniformMat4("modelTransform",$mod.modelTransform);
-    $mod.gl.clear($mod.gl.COLOR_BUFFER_BIT);
-    $mod.gl.drawArrays($mod.gl.TRIANGLES,0,3);
-    window.requestAnimationFrame($mod.UpdateCanvas);
+  this.debugConsole = null;
+  this.canvasAnimationHandler = 0;
+  this.maps = null;
+  this.camera = new pas.GLTypes.TVec3();
+  this.lightPosition = new pas.GLTypes.TVec3();
+  this.terrainNoise = null;
+  this.terrainSize = 64 * 3;
+  this.terrainResolution = 128;
+  this.flySpeed = 1.3;
+  this.visiblity = 4;
+  rtl.createClass($mod,"TTilingTerrain",pas.Terrain.TTerrain,function () {
+    this.$init = function () {
+      pas.Terrain.TTerrain.$init.call(this);
+      this.neighbor = null;
+    };
+    this.$final = function () {
+      this.neighbor = undefined;
+      pas.Terrain.TTerrain.$final.call(this);
+    };
+    this.GetHeightForVertex = function (localX, localY, x, y) {
+      var Result = 0.0;
+      if ((localY === 0) && (this.neighbor !== null)) {
+        Result = this.neighbor.GetHeightAtPoint(localX,(localY + this.neighbor.GetWidth()) - 1)}
+       else {
+        Result = this.noise$1.GetNoise(x,y,this.GetWidth(),this.GetHeight(),6,3);
+        Result = Math.pow(Result,9) * 60;
+      };
+      return Result;
+    };
+  });
+  this.DrawCanvas = function () {
+    var terrainCoord = new pas.GLTypes.TVec3();
+    var startIndex = 0;
+    var endIndex = 0;
+    var i = 0;
+    var map = null;
+    $mod.gl.clear($mod.gl.COLOR_BUFFER_BIT + $mod.gl.DEPTH_BUFFER_BIT);
+    $mod.viewTransform = pas.Mat4.TMat4.$create("Identity");
+    $mod.viewTransform = $mod.viewTransform.Multiply(pas.Mat4.TMat4.$create("Translate",[$mod.camera.x,$mod.camera.y,$mod.camera.z]));
+    $mod.shader.SetUniformMat4("viewTransform",$mod.viewTransform);
+    $mod.lightPosition.z += $mod.flySpeed;
+    $mod.shader.SetUniformVec3("lightPosition",new pas.GLTypes.TVec3($mod.lightPosition));
+    $mod.camera.z -= $mod.flySpeed;
+    $mod.camera.y = -($mod.terrainSize / 4) + (Math.sin($mod.camera.z / $mod.terrainSize) * 14);
+    $mod.camera.x = -($mod.terrainSize / 2) + (Math.cos($mod.camera.z / $mod.terrainSize) * 20);
+    terrainCoord = new pas.GLTypes.TVec3(pas.GLTypes.Divide(new pas.GLTypes.TVec3($mod.camera),$mod.terrainSize));
+    endIndex = pas.System.Trunc(Math.abs(terrainCoord.z));
+    startIndex = endIndex - $mod.visiblity;
+    if (startIndex < 0) startIndex = 0;
+    for (var $l1 = startIndex, $end2 = endIndex; $l1 <= $end2; $l1++) {
+      i = $l1;
+      if (($mod.maps.length === 0) || (($mod.maps.length === i) && ($mod.maps[i] == null))) {
+        map = $mod.TTilingTerrain.$create("Create$2",[$mod.gl,$mod.terrainNoise,$mod.terrainSize,$mod.terrainResolution,new pas.GLTypes.TVec2(pas.GLTypes.V2(0,$mod.terrainSize * i))]);
+        if ((i - 1) >= 0) map.neighbor = rtl.getObject($mod.maps[i - 1]);
+        map.Generate();
+        $mod.maps.push(map);
+        if ((startIndex - 1) >= 0) $mod.maps[startIndex - 1] = null;
+      };
+      map = rtl.getObject($mod.maps[i]);
+      $mod.modelTransform = pas.Mat4.TMat4.$create("Identity");
+      $mod.modelTransform = $mod.modelTransform.Multiply(pas.Mat4.TMat4.$create("Translate",[0,0,$mod.terrainSize * i]));
+      $mod.shader.SetUniformMat4("modelTransform",$mod.modelTransform);
+      map.Draw();
+    };
+  };
+  this.AnimateCanvas = function (time) {
+    $mod.DrawCanvas();
+    if ($mod.canvasAnimationHandler !== 0) $mod.canvasAnimationHandler = window.requestAnimationFrame($mod.AnimateCanvas);
+  };
+  this.StartAnimatingCanvas = function () {
+    $mod.canvasAnimationHandler = window.requestAnimationFrame($mod.AnimateCanvas);
   };
   this.canvas = null;
-  this.stride = 0;
-  this.offset = 0;
   this.vertexShaderSource = "";
   this.fragmentShaderSource = "";
-  this.buffer = null;
+  this.element = null;
+  this.texture = null;
   $mod.$main = function () {
+    $mod.debugConsole = document.getElementById("debug-console");
     $mod.canvas = document.createElement("canvas");
-    $mod.canvas.width = 300;
-    $mod.canvas.height = 300;
+    $mod.canvas.width = 800;
+    $mod.canvas.height = 600;
     document.body.appendChild($mod.canvas);
     $mod.gl = $mod.canvas.getContext("webgl");
     if ($mod.gl === null) {
@@ -1735,29 +2203,43 @@ rtl.module("program",["System","Mat4","MemoryBuffer","GLUtils","GLTypes","SysUti
     $mod.shader = pas.GLUtils.TShader.$create("Create$1",[$mod.gl,$mod.vertexShaderSource,$mod.fragmentShaderSource]);
     $mod.shader.Compile();
     $mod.shader.BindAttribLocation(0,"in_position");
-    $mod.shader.BindAttribLocation(1,"in_color");
+    $mod.shader.BindAttribLocation(1,"in_texCoord");
+    $mod.shader.BindAttribLocation(2,"in_normal");
     $mod.shader.Link();
     $mod.shader.Use();
     $mod.gl.clearColor(0.9,0.9,0.9,1);
     $mod.gl.viewport(0,0,$mod.canvas.width,$mod.canvas.height);
     $mod.gl.clear($mod.gl.COLOR_BUFFER_BIT);
-    $mod.projTransform = pas.Mat4.TMat4.$create("Ortho",[0,$mod.gl.canvas.width,$mod.gl.canvas.height,0,-1,1]);
-    $mod.viewTransform = pas.Mat4.TMat4.$create("Identity");
-    $mod.modelTransform = pas.Mat4.TMat4.$create("Identity");
+    $mod.gl.enable($mod.gl.DEPTH_TEST);
+    $mod.gl.enable($mod.gl.BLEND);
+    $mod.gl.enable($mod.gl.CULL_FACE);
+    $mod.gl.cullFace($mod.gl.BACK);
+    $mod.projTransform = pas.Mat4.TMat4.$create("Perspective",[60.0,$mod.canvas.width / $mod.canvas.height,0.1,2000]);
     $mod.shader.SetUniformMat4("projTransform",$mod.projTransform);
+    $mod.viewTransform = pas.Mat4.TMat4.$create("Identity");
     $mod.shader.SetUniformMat4("viewTransform",$mod.viewTransform);
+    $mod.shader.SetUniformMat4("inverseViewTransform",$mod.viewTransform.Inverse());
+    $mod.lightPosition = new pas.GLTypes.TVec3(pas.GLTypes.V3(0,$mod.terrainSize / 2,-($mod.terrainSize / 2)));
+    $mod.shader.SetUniformVec3("lightPosition",new pas.GLTypes.TVec3($mod.lightPosition));
+    $mod.shader.SetUniformVec3("lightColor",new pas.GLTypes.TVec3(pas.GLTypes.V3(1,1,1)));
+    $mod.shader.SetUniformFloat("shineDamper",1000);
+    $mod.shader.SetUniformFloat("reflectivity",1);
+    $mod.gl.clear($mod.gl.COLOR_BUFFER_BIT + $mod.gl.DEPTH_BUFFER_BIT);
+    $mod.modelTransform = pas.Mat4.TMat4.$create("Identity");
     $mod.shader.SetUniformMat4("modelTransform",$mod.modelTransform);
-    $mod.buffer = $mod.gl.createBuffer();
-    $mod.gl.bindBuffer($mod.gl.ARRAY_BUFFER,$mod.buffer);
-    $mod.gl.bufferData($mod.gl.ARRAY_BUFFER,$mod.GetVertexData(),$mod.gl.STATIC_DRAW);
-    $mod.offset = 0;
-    $mod.stride = 12;
-    $mod.gl.enableVertexAttribArray(0);
-    $mod.gl.vertexAttribPointer(0,2,$mod.gl.FLOAT,false,$mod.stride,$mod.offset);
-    $mod.offset += pas.GLUtils.GLSizeof($mod.gl.FLOAT) * 2;
-    $mod.gl.enableVertexAttribArray(1);
-    $mod.gl.vertexAttribPointer(1,4,$mod.gl.UNSIGNED_BYTE,true,$mod.stride,$mod.offset);
-    $mod.offset += pas.GLUtils.GLSizeof($mod.gl.UNSIGNED_BYTE) * 4;
-    window.requestAnimationFrame($mod.UpdateCanvas);
+    $mod.camera.x = -($mod.terrainSize / 2);
+    $mod.camera.y = -($mod.terrainSize / 4);
+    $mod.camera.z = -($mod.terrainSize / 2);
+    $mod.element = document.getElementById("terrain-texture");
+    $mod.texture = $mod.gl.createTexture();
+    $mod.gl.bindTexture($mod.gl.TEXTURE_2D,$mod.texture);
+    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_WRAP_S,$mod.gl.CLAMP_TO_EDGE);
+    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_WRAP_T,$mod.gl.CLAMP_TO_EDGE);
+    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_MIN_FILTER,$mod.gl.LINEAR);
+    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_MAG_FILTER,$mod.gl.LINEAR);
+    $mod.gl.texImage2D($mod.gl.TEXTURE_2D,0,$mod.gl.RGBA,$mod.gl.RGBA,$mod.gl.UNSIGNED_BYTE,rtl.getObject($mod.element));
+    $mod.terrainNoise = pas.Noise.TNoise.$create("Create$2",[pas.Noise.RandomNoiseSeed(1).slice(0)]);
+    $mod.maps = new Array();
+    $mod.StartAnimatingCanvas();
   };
 });

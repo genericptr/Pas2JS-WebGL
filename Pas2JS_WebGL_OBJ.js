@@ -2210,24 +2210,58 @@ rtl.module("webgl",["System","JS","Web"],function () {
   "use strict";
   var $mod = this;
 });
-rtl.module("GLTypes",["System","webgl","JS"],function () {
+rtl.module("GLTypes",["System","webgl","JS","math"],function () {
   "use strict";
   var $mod = this;
-  this.V2 = function (x, y) {
-    var Result = [];
-    Result[0] = x;
-    Result[1] = y;
-    return Result;
+  this.TVec2 = function (s) {
+    if (s) {
+      this.x = s.x;
+      this.y = s.y;
+    } else {
+      this.x = 0.0;
+      this.y = 0.0;
+    };
+    this.$equal = function (b) {
+      return (this.x === b.x) && (this.y === b.y);
+    };
+  };
+  this.TVec3 = function (s) {
+    if (s) {
+      this.x = s.x;
+      this.y = s.y;
+      this.z = s.z;
+    } else {
+      this.x = 0.0;
+      this.y = 0.0;
+      this.z = 0.0;
+    };
+    this.$equal = function (b) {
+      return (this.x === b.x) && ((this.y === b.y) && (this.z === b.z));
+    };
   };
   this.V3 = function (x, y, z) {
+    var Result = new $mod.TVec3();
+    Result.x = x;
+    Result.y = y;
+    Result.z = z;
+    return Result;
+  };
+  this.ToFloats = function (v) {
     var Result = [];
-    Result[0] = x;
-    Result[1] = y;
-    Result[2] = z;
+    Result = rtl.arraySetLength(Result,0.0,3);
+    Result[0] = v.x;
+    Result[1] = v.y;
+    Result[2] = v.z;
+    return Result;
+  };
+  this.V2 = function (x, y) {
+    var Result = new $mod.TVec2();
+    Result.x = x;
+    Result.y = y;
     return Result;
   };
 });
-rtl.module("GLUtils",["System","Mat4","GLTypes","Types","browserconsole","Web","webgl","JS","math","SysUtils"],function () {
+rtl.module("GLUtils",["System","Mat4","GLTypes","browserconsole","Web","webgl","JS","Types","math","SysUtils"],function () {
   "use strict";
   var $mod = this;
   var $impl = $mod.$impl;
@@ -2275,7 +2309,7 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","Types","browserconsole","Web","
       $impl.GLFatal(this.gl,"gl.uniformMatrix4fv");
     };
     this.SetUniformVec3 = function (name, value) {
-      this.gl.uniform3fv(this.GetUniformLocation(name),value);
+      this.gl.uniform3fv(this.GetUniformLocation(name),pas.GLTypes.ToFloats(new pas.GLTypes.TVec3(value)));
       $impl.GLFatal(this.gl,"gl.uniform3fv");
     };
     this.SetUniformFloat = function (name, value) {
@@ -2303,25 +2337,26 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","Types","browserconsole","Web","
       return Result;
     };
   });
-  this.TOBJData = function (s) {
+  this.TModelData = function (s) {
     if (s) {
       this.verticies = s.verticies;
-      this.indices = s.indices;
+      this.indicies = s.indicies;
       this.floatsPerVertex = s.floatsPerVertex;
     } else {
       this.verticies = null;
-      this.indices = null;
+      this.indicies = null;
       this.floatsPerVertex = 0;
     };
     this.$equal = function (b) {
-      return (this.verticies === b.verticies) && ((this.indices === b.indices) && (this.floatsPerVertex === b.floatsPerVertex));
+      return (this.verticies === b.verticies) && ((this.indicies === b.indicies) && (this.floatsPerVertex === b.floatsPerVertex));
     };
   };
+  this.kModelVertexFloats = (3 + 2) + 3;
   rtl.createClass($mod,"TModel",pas.System.TObject,function () {
     this.$init = function () {
       pas.System.TObject.$init.call(this);
       this.gl = null;
-      this.data = new $mod.TOBJData();
+      this.data = new $mod.TModelData();
       this.vertexBuffer = null;
       this.indexBuffer = null;
     };
@@ -2332,16 +2367,16 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","Types","browserconsole","Web","
       this.indexBuffer = undefined;
       pas.System.TObject.$final.call(this);
     };
-    this.Create$1 = function (context, objData) {
+    this.Create$1 = function (context, modelData) {
       this.gl = context;
-      this.data = new $mod.TOBJData(objData);
+      this.data = new $mod.TModelData(modelData);
       this.Load();
     };
     this.Draw = function () {
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER,this.vertexBuffer);
       this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
       this.EnableAttributes();
-      this.gl.drawElements(this.gl.TRIANGLES,this.data.indices.length,this.gl.UNSIGNED_SHORT,0);
+      this.gl.drawElements(this.gl.TRIANGLES,this.data.indicies.length,this.gl.UNSIGNED_SHORT,0);
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER,null);
       this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER,null);
     };
@@ -2363,7 +2398,7 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","Types","browserconsole","Web","
     this.Load = function () {
       this.indexBuffer = this.gl.createBuffer();
       this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
-      this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER,this.data.indices,this.gl.STATIC_DRAW);
+      this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER,this.data.indicies,this.gl.STATIC_DRAW);
       this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER,null);
       this.vertexBuffer = this.gl.createBuffer();
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER,this.vertexBuffer);
@@ -2374,7 +2409,7 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","Types","browserconsole","Web","
   var kLineEnding = "\n";
   var kSpace = " ";
   this.LoadOBJFile = function (text) {
-    var Result = new $mod.TOBJData();
+    var Result = new $mod.TModelData();
     var lines = [];
     var parts = [];
     var indices = null;
@@ -2387,10 +2422,10 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","Types","browserconsole","Web","
     var line = null;
     var vertex = new $impl.TOBJVertex();
     var vertexIndex = 0;
-    var objData = new $mod.TOBJData();
-    var pos = [];
-    var texCoord = [];
-    var normal = [];
+    var data = new $mod.TModelData();
+    var pos = new pas.GLTypes.TVec3();
+    var texCoord = new pas.GLTypes.TVec2();
+    var normal = new pas.GLTypes.TVec3();
     positions = new Array();
     normals = new Array();
     textures = new Array();
@@ -2402,50 +2437,50 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","Types","browserconsole","Web","
       line = lines[i];
       parts = line.split(kSpace);
       if (line.startsWith("v ")) {
-        pos = pas.GLTypes.V3(pas.SysUtils.StrToFloat(parts[1]),pas.SysUtils.StrToFloat(parts[2]),pas.SysUtils.StrToFloat(parts[3]));
-        positions.push(pos);
-        vertex.position = pos;
+        pos = new pas.GLTypes.TVec3(pas.GLTypes.V3(pas.SysUtils.StrToFloat(parts[1]),pas.SysUtils.StrToFloat(parts[2]),pas.SysUtils.StrToFloat(parts[3])));
+        positions.push(new pas.GLTypes.TVec3(pos));
+        vertex.position = new pas.GLTypes.TVec3(pos);
         vertex.textureIndex = -1;
         vertex.normalIndex = -1;
-        verticies.push(pos);
+        verticies.push(new pas.GLTypes.TVec3(pos));
       } else if (line.startsWith("vn ")) {
-        normals.push(pas.GLTypes.V3(pas.SysUtils.StrToFloat(parts[1]),pas.SysUtils.StrToFloat(parts[2]),pas.SysUtils.StrToFloat(parts[3])));
+        normals.push(new pas.GLTypes.TVec3(pas.GLTypes.V3(pas.SysUtils.StrToFloat(parts[1]),pas.SysUtils.StrToFloat(parts[2]),pas.SysUtils.StrToFloat(parts[3]))));
       } else if (line.startsWith("vt ")) {
-        textures.push(pas.GLTypes.V2(pas.SysUtils.StrToFloat(parts[1]),1 - pas.SysUtils.StrToFloat(parts[2])));
+        textures.push(new pas.GLTypes.TVec2(pas.GLTypes.V2(pas.SysUtils.StrToFloat(parts[1]),1 - pas.SysUtils.StrToFloat(parts[2]))));
       } else if (line.startsWith("f ")) {
         $impl.ProcessFace(verticies,indices,parts[1].split("\/"));
         $impl.ProcessFace(verticies,indices,parts[2].split("\/"));
         $impl.ProcessFace(verticies,indices,parts[3].split("\/"));
       };
     };
-    objData.floatsPerVertex = (3 + 2) + 3;
-    mesh = new Float32Array(objData.floatsPerVertex * verticies.length);
+    data.floatsPerVertex = 8;
+    mesh = new Float32Array(data.floatsPerVertex * verticies.length);
     for (var $l3 = 0, $end4 = verticies.length - 1; $l3 <= $end4; $l3++) {
       i = $l3;
       vertex = new $impl.TOBJVertex(rtl.getObject(verticies[i]));
-      vertexIndex = i * objData.floatsPerVertex;
-      pos = positions[i];
-      mesh[vertexIndex + 0] = pos[0];
-      mesh[vertexIndex + 1] = pos[1];
-      mesh[vertexIndex + 2] = pos[2];
+      vertexIndex = i * data.floatsPerVertex;
+      pos = new pas.GLTypes.TVec3(rtl.getObject(positions[i]));
+      mesh[vertexIndex + 0] = pos.x;
+      mesh[vertexIndex + 1] = pos.y;
+      mesh[vertexIndex + 2] = pos.z;
       if (vertex.textureIndex !== -1) {
-        texCoord = textures[vertex.textureIndex];
-        mesh[vertexIndex + 3] = texCoord[0];
-        mesh[vertexIndex + 4] = texCoord[1];
+        texCoord = new pas.GLTypes.TVec2(rtl.getObject(textures[vertex.textureIndex]));
+        mesh[vertexIndex + 3] = texCoord.x;
+        mesh[vertexIndex + 4] = texCoord.y;
       } else {
         mesh[vertexIndex + 3] = 0;
         mesh[vertexIndex + 4] = 0;
       };
       if (vertex.normalIndex !== -1) {
-        normal = normals[vertex.normalIndex];
-        mesh[vertexIndex + 5] = normal[0];
-        mesh[vertexIndex + 6] = normal[1];
-        mesh[vertexIndex + 7] = normal[2];
+        normal = new pas.GLTypes.TVec3(rtl.getObject(normals[vertex.normalIndex]));
+        mesh[vertexIndex + 5] = normal.x;
+        mesh[vertexIndex + 6] = normal.y;
+        mesh[vertexIndex + 7] = normal.z;
       };
     };
-    objData.verticies = mesh;
-    objData.indices = new Uint16Array(indices);
-    Result = new $mod.TOBJData(objData);
+    data.verticies = mesh;
+    data.indicies = new Uint16Array(indices);
+    Result = new $mod.TModelData(data);
     return Result;
   };
   this.GLSizeof = function (glType) {
@@ -2495,16 +2530,16 @@ rtl.module("GLUtils",["System","Mat4","GLTypes","Types","browserconsole","Web","
   };
   $impl.TOBJVertex = function (s) {
     if (s) {
-      this.position = s.position;
+      this.position = new pas.GLTypes.TVec3(s.position);
       this.textureIndex = s.textureIndex;
       this.normalIndex = s.normalIndex;
     } else {
-      this.position = [];
+      this.position = new pas.GLTypes.TVec3();
       this.textureIndex = 0;
       this.normalIndex = 0;
     };
     this.$equal = function (b) {
-      return (this.position === b.position) && ((this.textureIndex === b.textureIndex) && (this.normalIndex === b.normalIndex));
+      return this.position.$equal(b.position) && ((this.textureIndex === b.textureIndex) && (this.normalIndex === b.normalIndex));
     };
   };
   $impl.ProcessFace = function (verticies, indices, face) {
@@ -2579,10 +2614,10 @@ rtl.module("program",["System","Types","Mat4","GLUtils","GLTypes","SysUtils","br
       this.request.send();
     };
     this.HandleLoaded = function () {
-      var data = new pas.GLUtils.TOBJData();
+      var data = new pas.GLUtils.TModelData();
       if (((this.request.readyState === 4) && (this.request.status === 200)) && (this.request.responseText.length > 0)) {
-        data = new pas.GLUtils.TOBJData(pas.GLUtils.LoadOBJFile(this.request.responseText));
-        $mod.dragonModel = pas.GLUtils.TModel.$create("Create$1",[this.gl$1,new pas.GLUtils.TOBJData(data)]);
+        data = new pas.GLUtils.TModelData(pas.GLUtils.LoadOBJFile(this.request.responseText));
+        $mod.dragonModel = pas.GLUtils.TModel.$create("Create$1",[this.gl$1,new pas.GLUtils.TModelData(data)]);
         $mod.StartAnimatingCanvas();
       };
     };
@@ -2622,8 +2657,8 @@ rtl.module("program",["System","Types","Mat4","GLUtils","GLTypes","SysUtils","br
     $mod.viewTransform = $mod.viewTransform.Multiply(pas.Mat4.TMat4.$create("Translate",[0,-3,-20]));
     $mod.shader.SetUniformMat4("viewTransform",$mod.viewTransform);
     $mod.shader.SetUniformMat4("inverseViewTransform",$mod.viewTransform.Inverse());
-    $mod.shader.SetUniformVec3("lightPosition",pas.GLTypes.V3(0,0,25));
-    $mod.shader.SetUniformVec3("lightColor",pas.GLTypes.V3(1,1,1));
+    $mod.shader.SetUniformVec3("lightPosition",new pas.GLTypes.TVec3(pas.GLTypes.V3(0,0,25)));
+    $mod.shader.SetUniformVec3("lightColor",new pas.GLTypes.TVec3(pas.GLTypes.V3(1,1,1)));
     $mod.shader.SetUniformFloat("shineDamper",10);
     $mod.shader.SetUniformFloat("reflectivity",1);
     $mod.TModelLoader.$create("Create$1",[$mod.gl,"res\/dragon.obj"]);

@@ -10,7 +10,7 @@ type
 	end;
 
 const
-	kSIZEOF_VERTEX = 12;
+	kSIZEOF_VERTEX = 12; 	// vec2 + RGBAb
 
 function GetVertexData: TJSUInt8Array;
 var
@@ -19,6 +19,12 @@ var
 	v: GLVertex2;
 	i: integer;
 begin
+
+	// there's really no reason to build the array
+	// as vectors first then pack into bytes but
+	// we're doing it anyways because this how most
+	// will be familar with vertex data from standard
+	// OpenGL
 	verts := TJSArray.new;
 
 	v.pos := V2(0, 0);
@@ -38,7 +44,7 @@ begin
 	for i := 0 to verts.length - 1 do
 		begin
 			v := GLVertex2(verts[i]);
-			buffer.AddFloats(2, v.pos);
+			buffer.AddFloats(2, {v.pos}ToFloats(v.pos));
 			buffer.AddBytes(4, v.color);
 		end;
 
@@ -137,7 +143,6 @@ begin
   gl.bufferData(gl.ARRAY_BUFFER, GetVertexData, gl.STATIC_DRAW);
 
 	offset := 0;  
-	// vec2 + RGBAb
 	stride := kSIZEOF_VERTEX;
 
 	// position
