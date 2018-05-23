@@ -132,10 +132,11 @@ begin
 	gl.Enable(gl.CULL_FACE);
 	gl.CullFace(gl.BACK);
 
+	// set projection transform
 	projTransform := TMat4.Perspective(60.0, canvas.width / canvas.height, 0.1, 2000);
-
 	shader.SetUniformMat4('projTransform', projTransform);
 
+	// set view transform
 	viewTransform := TMat4.Identity;
 	viewTransform := viewTransform.Multiply(TMat4.Translate(0, -3, -20));
 	shader.SetUniformMat4('viewTransform', viewTransform);

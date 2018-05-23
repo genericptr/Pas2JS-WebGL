@@ -61,8 +61,6 @@ function TTerrain.GetHeightForVertex (localX, localY, x, y: integer): TNoiseFloa
 begin
 	result := noise.GetNoise(x, y, heights.GetWidth, heights.GetHeight, 4, 3);
 	result := Power(result, 5);
-	// terraces
-	//result := Round(result * 24) / 24;
 	result := (result * 20) - 6;	
 end;
 
@@ -94,7 +92,7 @@ begin
 		noise := TNoise.Create(RandomNoiseSeed(1));
 	heights := TMatrix.Create(terrainResolution, terrainResolution);
 
-	verticies := TJSArray.new;//TMemoryBuffer.Create(heights.GetWidth * heights.GetHeight * kModelVertexFloats * 4);
+	verticies := TJSArray.new;
 	indicies := TJSArray.new;
 
 	for y := 0 to heights.GetWidth - 1 do
@@ -114,7 +112,6 @@ begin
 			
 			ModelVertexAddToArray(vertex, verticies);
 		end;
-	//writeln('terrain floats: ', verticies.length);
 
 	for gz := 0 to heights.GetWidth - 2 do
 	for gx := 0 to heights.GetHeight - 2 do

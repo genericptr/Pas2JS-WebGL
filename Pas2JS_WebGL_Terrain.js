@@ -2120,6 +2120,7 @@ rtl.module("program",["System","Terrain","Noise","Mat4","GLUtils","GLTypes","Sys
   this.terrainResolution = 128;
   this.flySpeed = 1.3;
   this.visiblity = 4;
+  this.textureLoaded = false;
   rtl.createClass($mod,"TTilingTerrain",pas.Terrain.TTerrain,function () {
     this.$init = function () {
       pas.Terrain.TTerrain.$init.call(this);
@@ -2150,6 +2151,7 @@ rtl.module("program",["System","Terrain","Noise","Mat4","GLUtils","GLTypes","Sys
     $mod.viewTransform = pas.Mat4.TMat4.$create("Identity");
     $mod.viewTransform = $mod.viewTransform.Multiply(pas.Mat4.TMat4.$create("Translate",[$mod.camera.x,$mod.camera.y,$mod.camera.z]));
     $mod.shader.SetUniformMat4("viewTransform",$mod.viewTransform);
+    $mod.shader.SetUniformMat4("inverseViewTransform",$mod.viewTransform.Inverse());
     $mod.lightPosition.z += $mod.flySpeed;
     $mod.shader.SetUniformVec3("lightPosition",new pas.GLTypes.TVec3($mod.lightPosition));
     $mod.camera.z -= $mod.flySpeed;
@@ -2176,17 +2178,30 @@ rtl.module("program",["System","Terrain","Noise","Mat4","GLUtils","GLTypes","Sys
     };
   };
   this.AnimateCanvas = function (time) {
-    $mod.DrawCanvas();
+    if ($mod.textureLoaded) $mod.DrawCanvas();
     if ($mod.canvasAnimationHandler !== 0) $mod.canvasAnimationHandler = window.requestAnimationFrame($mod.AnimateCanvas);
   };
   this.StartAnimatingCanvas = function () {
     $mod.canvasAnimationHandler = window.requestAnimationFrame($mod.AnimateCanvas);
   };
+  this.LoadedTexture = function (event) {
+    var Result = false;
+    var texture = null;
+    texture = $mod.gl.createTexture();
+    $mod.gl.bindTexture($mod.gl.TEXTURE_2D,texture);
+    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_WRAP_S,$mod.gl.CLAMP_TO_EDGE);
+    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_WRAP_T,$mod.gl.CLAMP_TO_EDGE);
+    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_MIN_FILTER,$mod.gl.LINEAR);
+    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_MAG_FILTER,$mod.gl.LINEAR);
+    $mod.gl.texImage2D($mod.gl.TEXTURE_2D,0,$mod.gl.RGBA,$mod.gl.RGBA,$mod.gl.UNSIGNED_BYTE,rtl.getObject(event.target));
+    $mod.textureLoaded = true;
+    Result = true;
+    return Result;
+  };
   this.canvas = null;
   this.vertexShaderSource = "";
   this.fragmentShaderSource = "";
-  this.element = null;
-  this.texture = null;
+  this.img = null;
   $mod.$main = function () {
     $mod.debugConsole = document.getElementById("debug-console");
     $mod.canvas = document.createElement("canvas");
@@ -2209,35 +2224,27 @@ rtl.module("program",["System","Terrain","Noise","Mat4","GLUtils","GLTypes","Sys
     $mod.shader.Use();
     $mod.gl.clearColor(0.9,0.9,0.9,1);
     $mod.gl.viewport(0,0,$mod.canvas.width,$mod.canvas.height);
-    $mod.gl.clear($mod.gl.COLOR_BUFFER_BIT);
     $mod.gl.enable($mod.gl.DEPTH_TEST);
     $mod.gl.enable($mod.gl.BLEND);
     $mod.gl.enable($mod.gl.CULL_FACE);
     $mod.gl.cullFace($mod.gl.BACK);
     $mod.projTransform = pas.Mat4.TMat4.$create("Perspective",[60.0,$mod.canvas.width / $mod.canvas.height,0.1,2000]);
     $mod.shader.SetUniformMat4("projTransform",$mod.projTransform);
-    $mod.viewTransform = pas.Mat4.TMat4.$create("Identity");
-    $mod.shader.SetUniformMat4("viewTransform",$mod.viewTransform);
-    $mod.shader.SetUniformMat4("inverseViewTransform",$mod.viewTransform.Inverse());
     $mod.lightPosition = new pas.GLTypes.TVec3(pas.GLTypes.V3(0,$mod.terrainSize / 2,-($mod.terrainSize / 2)));
     $mod.shader.SetUniformVec3("lightPosition",new pas.GLTypes.TVec3($mod.lightPosition));
     $mod.shader.SetUniformVec3("lightColor",new pas.GLTypes.TVec3(pas.GLTypes.V3(1,1,1)));
     $mod.shader.SetUniformFloat("shineDamper",1000);
     $mod.shader.SetUniformFloat("reflectivity",1);
     $mod.gl.clear($mod.gl.COLOR_BUFFER_BIT + $mod.gl.DEPTH_BUFFER_BIT);
-    $mod.modelTransform = pas.Mat4.TMat4.$create("Identity");
-    $mod.shader.SetUniformMat4("modelTransform",$mod.modelTransform);
     $mod.camera.x = -($mod.terrainSize / 2);
     $mod.camera.y = -($mod.terrainSize / 4);
     $mod.camera.z = -($mod.terrainSize / 2);
-    $mod.element = document.getElementById("terrain-texture");
-    $mod.texture = $mod.gl.createTexture();
-    $mod.gl.bindTexture($mod.gl.TEXTURE_2D,$mod.texture);
-    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_WRAP_S,$mod.gl.CLAMP_TO_EDGE);
-    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_WRAP_T,$mod.gl.CLAMP_TO_EDGE);
-    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_MIN_FILTER,$mod.gl.LINEAR);
-    $mod.gl.texParameteri($mod.gl.TEXTURE_2D,$mod.gl.TEXTURE_MAG_FILTER,$mod.gl.LINEAR);
-    $mod.gl.texImage2D($mod.gl.TEXTURE_2D,0,$mod.gl.RGBA,$mod.gl.RGBA,$mod.gl.UNSIGNED_BYTE,rtl.getObject($mod.element));
+    $mod.img = document.createElement("IMG");
+    $mod.img.setAttribute("height","512");
+    $mod.img.setAttribute("width","512");
+    $mod.img.setAttribute("crossOrigin","anonymous");
+    $mod.img.setAttribute("src","res\/ground.jpg");
+    $mod.img.onload = $mod.LoadedTexture;
     $mod.terrainNoise = pas.Noise.TNoise.$create("Create$2",[pas.Noise.RandomNoiseSeed(1).slice(0)]);
     $mod.maps = new Array();
     $mod.StartAnimatingCanvas();

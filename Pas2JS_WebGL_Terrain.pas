@@ -24,6 +24,7 @@ var
 	terrainResolution: integer = 128;
 	flySpeed: single = 1.3;
 	visiblity: integer = 4;
+	textureLoaded: boolean = false;
 
 type
 	TTilingTerrain = class (TTerrain)
@@ -58,6 +59,7 @@ begin
 	viewTransform := TMat4.Identity;
 	viewTransform := viewTransform.Multiply(TMat4.Translate(camera.x, camera.y, camera.z));
 	shader.SetUniformMat4('viewTransform', viewTransform);
+	shader.SetUniformMat4('inverseViewTransform', viewTransform.Inverse);
 
 	// move light with camera
 	lightPosition.z += flySpeed;
@@ -74,8 +76,6 @@ begin
 	if startIndex < 0 then
 		startIndex := 0;
 
-	// https://gamedev.stackexchange.com/questions/23625/how-do-you-generate-tileable-perlin-noise
-
 	//debugConsole.innerHTML := IntToStr(startIndex)+'/'+IntToStr(endIndex) + VecStr(terrainCoord);
 
 	for i := startIndex to endIndex do
@@ -86,10 +86,6 @@ begin
 					if (i - 1) >= 0 then
 						map.neighbor := TTilingTerrain(maps[i - 1]);
 					map.Generate;
-
-					// TODO: take the edge and set the heights to same size as the neighbor
-					// we need to do this pre-vertex generation so we need a callback
-					// or interface (which doesn't exist yet)
 
 					maps.push(map);
 
@@ -104,18 +100,12 @@ begin
 			shader.SetUniformMat4('modelTransform', modelTransform);
 			map.Draw;
 		end;
-
-	//if abs(terrainCoord.z) > 10 then
-	//	begin
-	//		writeln('cancel animation');
-	//		window.cancelAnimationFrame(canvasAnimationHandler);
-	//		canvasAnimationHandler := 0;
-	//	end;
 end;
 
 procedure AnimateCanvas(time: TDOMHighResTimeStamp);
 begin
-	DrawCanvas;
+	if textureLoaded then
+		DrawCanvas;
 
 	if canvasAnimationHandler <> 0 then
 		canvasAnimationHandler := window.requestAnimationFrame(@AnimateCanvas);
@@ -124,6 +114,22 @@ end;
 procedure StartAnimatingCanvas;
 begin
 	canvasAnimationHandler := window.requestAnimationFrame(@AnimateCanvas);
+end;
+
+function LoadedTexture (event: TEventListenerEvent): boolean;
+var
+	texture: TJSWebGLTexture;
+begin
+	texture := gl.createTexture;
+	gl.bindTexture(gl.TEXTURE_2D, texture);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, TJSTexImageSource(event.target));
+
+	textureLoaded := true;
+	result := true;
 end;
 
 var
@@ -135,6 +141,7 @@ var
   fragmentShaderSource: string;
   buffer: TJSWebGLBuffer;
   element: TJSElement;
+  img: TJSHTMLElement;
   texture: TJSWebGLTexture;
 begin
 
@@ -171,26 +178,15 @@ begin
 	// prepare context
 	gl.clearColor(0.9, 0.9, 0.9, 1);
 	gl.viewport(0, 0, canvas.width, canvas.height);
-	gl.clear(gl.COLOR_BUFFER_BIT);
 
-	// NOTE: we don't need this in WebGL
-	//gl.enable(gl.TEXTURE_2D);
 	gl.enable(gl.DEPTH_TEST);
 	gl.enable(gl.BLEND);
 	gl.Enable(gl.CULL_FACE);
 	gl.CullFace(gl.BACK);
 
+	// set projection transform
 	projTransform := TMat4.Perspective(60.0, canvas.width / canvas.height, 0.1, 2000);
-
 	shader.SetUniformMat4('projTransform', projTransform);
-
-	viewTransform := TMat4.Identity;
-	//viewTransform := viewTransform.Multiply(TMat4.Translate(-10, -3, -20));
-	shader.SetUniformMat4('viewTransform', viewTransform);
-
-	// NOTE: webgl glsl doesn't have the inverse function
-	// so we need to do this here
-	shader.SetUniformMat4('inverseViewTransform', viewTransform.Inverse);
 
 	// lighting
 	lightPosition := V3(0, terrainSize / 2, -(terrainSize/2));
@@ -203,27 +199,32 @@ begin
 
 	gl.clear(gl.COLOR_BUFFER_BIT + gl.DEPTH_BUFFER_BIT);
 
-	modelTransform := TMat4.Identity;
-	shader.SetUniformMat4('modelTransform', modelTransform);
-
 	camera.x := -(terrainSize/2);
 	camera.y := -(terrainSize/4);
 	camera.z := -(terrainSize/2);
 
 	// load terrain texture from image tag
-	element := document.getElementById('terrain-texture');
+	//img := TJSHTMLElement(document.getElementById('terrain-texture'));
+	//    <image id="terrain-texture" crossOrigin="anonymous" src="res/ground.jpg" hidden/>
+	img := TJSHTMLElement(document.createElement('IMG'));
+	img.setAttribute('height', '512');
+	img.setAttribute('width', '512');
+	img.setAttribute('crossOrigin', 'anonymous');
+	img.setAttribute('src', 'res/ground.jpg');
+	img.onload := @LoadedTexture;
 
-	texture := gl.createTexture;
-	gl.bindTexture(gl.TEXTURE_2D, texture);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, TJSTexImageSource(element));
+	//texture := gl.createTexture;
+	//gl.bindTexture(gl.TEXTURE_2D, texture);
+	//gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	//gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	//gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	//gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+	//gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, TJSTexImageSource(img));
+	//textureLoaded := true;
 
+	// TODO: RandSeed doesn't seem to work so we get a random seed each time
 	terrainNoise := TNoise.Create(RandomNoiseSeed(1));
 	maps := TJSArray.new;
 
-	//map.Draw;
 	StartAnimatingCanvas;
 end.
